@@ -9,10 +9,18 @@ green. The boards it implements are on the
 
 ```toml
 [dependencies]
-vino-ui = { git = "https://github.com/karanshukla/vinoUserInterface", tag = "v0.1.0" }
+vino-user-interface = "0.1"
 ```
 
-Each app pins a tag. A change here is a tag here, then a bump in each app.
+```rust
+use vino_user_interface::{theme, widgets};
+```
+
+## Releasing
+
+Bump `version` in `Cargo.toml`, merge, then push a matching tag:
+`git tag v0.1.1 && git push origin v0.1.1`. The release workflow reruns the
+checks and publishes to crates.io. Then bump each app.
 
 ## What is in it
 
@@ -32,6 +40,9 @@ needs you; red means it failed. Menus and popups are the only shadowed surface.
 - Text is 4.5:1 and the edges of controls 3:1 against the page, a surface, a
   field and the three tints, in both themes. `cargo test` checks it over the
   visuals as installed; a token that fails it does not ship.
+- Every control has a role and a name, is 24 px or has room around it, and
+  Tab reaches it. `tests/a11y.rs` checks that over the AccessKit tree, in both
+  themes, wide and narrow; CI runs it as its own `a11y` check.
 - A row lays its controls out from the right. A composite widget inside one
   sizes itself up front and lays out left to right (see `segmented`, `keys`).
 - `widgets::switch` and the buttons are their own widgets, not styled egui

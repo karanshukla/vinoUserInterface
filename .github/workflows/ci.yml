@@ -3,8 +3,9 @@ name: ci
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
+  # release.yml runs these before it publishes.
+  workflow_call:
 
 permissions:
   contents: read
@@ -23,8 +24,25 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
-      # The contrast test runs here: 4.5:1 for text and 3:1 for control edges, both themes.
       - run: cargo test --locked
+      # What crates.io would get: the include list, the fonts, a build from the tarball.
+      - run: cargo publish --dry-run --locked
+
+  # Its own check so a regression reads as one: contrast (WCAG 1.4.3, 1.4.11) over
+  # the installed visuals, then tests/a11y.rs over the AccessKit tree: names and
+  # roles (4.1.2), target size (2.5.8), Tab order (2.1.1), headings and live regions.
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo test --locked --lib contrast
+      - run: cargo test --locked --test a11y
 
   # rust-version in Cargo.toml: egui 0.37 needs 1.95
   msrv:

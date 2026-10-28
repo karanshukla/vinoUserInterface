@@ -1,12 +1,16 @@
 [package]
-name = "vino-ui"
+name = "vino-user-interface"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"
-license = "MIT"
+license = "MIT AND OFL-1.1 AND Apache-2.0"
 description = "The egui theme and widgets shared by vinoSearch, vinoWhisper and vinoSpeak"
 repository = "https://github.com/karanshukla/vinoUserInterface"
-publish = false
+readme = "README.md"
+keywords = ["egui", "theme", "widgets", "accessibility", "gui"]
+categories = ["gui"]
+# What a build needs: the code, the fonts it embeds and their licences.
+include = ["/src", "/assets/fonts", "/README.md", "/LICENSE"]
 
 # Only egui: the apps bring eframe. default_fonts stays on for the glyphs the
 # bundled Latin subsets lack.
