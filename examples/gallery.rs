@@ -192,7 +192,7 @@ impl Gallery {
                     ui.horizontal(|ui| {
                         widgets::title(ui, self.page.title());
                         if self.page == Page::Widgets {
-                            let tag = widgets::tag(ui, Tone::Warn, "Beta");
+                            let tag = widgets::tag(ui, Tone::Neutral, "Beta");
                             a11y::decorative(ui, tag.id);
                         }
                     });
@@ -362,12 +362,16 @@ impl Gallery {
                     widgets::chip(ui, ChipKind::Warn, "Needs a restart");
                     widgets::chip(ui, ChipKind::Err, "Failed");
                     widgets::chip(ui, ChipKind::Neutral, "Paused");
-                    widgets::chip_busy(ui, ChipKind::Ok, "Indexing");
+                });
+                // A wait nothing else shows: the spinner, beside what it waits for.
+                ui.horizontal(|ui| {
+                    widgets::spinner(ui);
+                    widgets::small(ui, "Connecting to the service");
                 });
                 ui.horizontal_wrapped(|ui| {
                     widgets::toggle_chip(ui, &mut self.only_images, "Images", Some(128));
                     widgets::toggle_chip(ui, &mut self.only_documents, "Documents", Some(42));
-                    widgets::tag(ui, Tone::Warn, "Beta");
+                    widgets::tag(ui, Tone::Neutral, "Beta");
                     widgets::tag(ui, Tone::Neutral, "PDF");
                     widgets::keys(ui, "Ctrl+Shift+F");
                 });
