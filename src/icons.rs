@@ -47,6 +47,45 @@ pub enum Icon {
 }
 
 impl Icon {
+    /// Every icon, in the order above.
+    pub const ALL: [Icon; 35] = [
+        Icon::Search,
+        Icon::Folder,
+        Icon::Lock,
+        Icon::Model,
+        Icon::Hardware,
+        Icon::Integration,
+        Icon::Index,
+        Icon::Plus,
+        Icon::Excluded,
+        Icon::File,
+        Icon::FileText,
+        Icon::Image,
+        Icon::ChevronDown,
+        Icon::Clock,
+        Icon::Play,
+        Icon::Stop,
+        Icon::Voice,
+        Icon::Speaker,
+        Icon::Keyboard,
+        Icon::Captions,
+        Icon::Mic,
+        Icon::Cleanup,
+        Icon::Sessions,
+        Icon::Settings,
+        Icon::Archive,
+        Icon::More,
+        Icon::ArrowLeft,
+        Icon::Warning,
+        Icon::Error,
+        Icon::Info,
+        Icon::Download,
+        Icon::Flask,
+        Icon::Key,
+        Icon::Refresh,
+        Icon::Check,
+    ];
+
     /// The SVG path data, in a 24 × 24 box.
     pub fn path(self) -> &'static str {
         match self {
@@ -513,43 +552,7 @@ mod tests {
 
     #[test]
     fn every_icon_parses_inside_its_box() {
-        for icon in [
-            Icon::Search,
-            Icon::Folder,
-            Icon::Lock,
-            Icon::Model,
-            Icon::Hardware,
-            Icon::Integration,
-            Icon::Index,
-            Icon::Plus,
-            Icon::Excluded,
-            Icon::File,
-            Icon::FileText,
-            Icon::Image,
-            Icon::ChevronDown,
-            Icon::Clock,
-            Icon::Play,
-            Icon::Stop,
-            Icon::Voice,
-            Icon::Speaker,
-            Icon::Keyboard,
-            Icon::Captions,
-            Icon::Mic,
-            Icon::Cleanup,
-            Icon::Sessions,
-            Icon::Settings,
-            Icon::Archive,
-            Icon::More,
-            Icon::ArrowLeft,
-            Icon::Warning,
-            Icon::Error,
-            Icon::Info,
-            Icon::Download,
-            Icon::Flask,
-            Icon::Key,
-            Icon::Refresh,
-            Icon::Check,
-        ] {
+        for icon in Icon::ALL {
             let subs = parse(icon.path());
             assert!(!subs.is_empty(), "{icon:?} drew nothing");
             for sub in &subs {

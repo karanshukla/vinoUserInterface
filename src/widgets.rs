@@ -19,13 +19,20 @@ pub const CONTROL_HEIGHT: f32 = 30.0;
 pub const SMALL_HEIGHT: f32 = 26.0;
 /// Below this width a row's control goes under its label.
 pub const NARROW: f32 = 440.0;
-/// Below this window width the sidebar folds into underline tabs.
-pub const SIDEBAR_FROM: f32 = 620.0;
 pub const SIDEBAR_WIDTH: f32 = 200.0;
+/// The content's left margin beside the sidebar.
+pub const PAGE_INSET: f32 = 28.0;
 /// The content column's widest.
 pub const CONTENT_MAX: f32 = 620.0;
 /// Between the content and the scroll bar on the window's edge.
 pub const SCROLL_GAP: f32 = 24.0;
+/// The page scroll bar's width.
+pub const SCROLL_BAR: f32 = 10.0;
+/// Below this window width the sidebar folds into underline tabs: the width
+/// at which the sidebar still leaves rows wide enough to keep their controls
+/// beside their labels. Half a 1366 or 1280 screen is under it, so a window
+/// snapped to one side gets tabs and wide rows, not a sidebar and stacked ones.
+pub const SIDEBAR_FROM: f32 = SIDEBAR_WIDTH + PAGE_INSET + NARROW + SCROLL_GAP + SCROLL_BAR;
 const GROUP_RADIUS: f32 = 12.0;
 const ROW_PADDING: Vec2 = vec2(16.0, 12.0);
 
@@ -522,10 +529,13 @@ pub fn segmented<T: Copy + PartialEq>(
             vec2(total, 24.0),
             Layout::left_to_right(Align::Center),
             |ui| {
+                let mut ids = Vec::with_capacity(options.len());
+                let mut move_focus = None;
                 for (i, ((value, label), galley)) in options.iter().zip(galleys).enumerate() {
                     let selected = *current == *value;
                     let size = vec2(galley.size().x + 20.0, 24.0);
                     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+                    ids.push(response.id);
                     response.widget_info(|| {
                         WidgetInfo::selected(Role::RadioButton, enabled, selected, *label)
                     });
@@ -533,6 +543,18 @@ pub fn segmented<T: Copy + PartialEq>(
                         *current = *value;
                     }
                     if response.has_focus() {
+                        // The arrows are ours: egui would move focus by them
+                        // too, and it can't wrap round.
+                        ui.memory_mut(|m| {
+                            m.set_focus_lock_filter(
+                                response.id,
+                                egui::EventFilter {
+                                    horizontal_arrows: true,
+                                    vertical_arrows: true,
+                                    ..Default::default()
+                                },
+                            )
+                        });
                         let step = ui.input(|input| {
                             if input.key_pressed(egui::Key::ArrowRight)
                                 || input.key_pressed(egui::Key::ArrowDown)
@@ -549,6 +571,7 @@ pub fn segmented<T: Copy + PartialEq>(
                         if step != 0 {
                             let to = (i as i32 + step).rem_euclid(options.len() as i32) as usize;
                             *current = options[to].0;
+                            move_focus = Some(to);
                         }
                     }
                     let painter = ui.painter();
@@ -577,6 +600,10 @@ pub fn segmented<T: Copy + PartialEq>(
                             StrokeKind::Inside,
                         );
                     }
+                }
+                // Focus follows the choice, as in any radio group.
+                if let Some(to) = move_focus {
+                    ui.memory_mut(|m| m.request_focus(ids[to]));
                 }
             },
         );
@@ -1176,16 +1203,20 @@ pub fn legend(ui: &mut Ui, color: Color32, text: &str) -> Response {
     .inner
 }
 
+/// A banner's fill, icon and icon colour.
+fn tone_look(p: &Palette, tone: Tone) -> (Color32, Icon, Color32) {
+    match tone {
+        Tone::Warn => (p.warn_tint, Icon::Warning, p.warn),
+        Tone::Error => (p.error_tint, Icon::Error, p.error),
+        Tone::Info | Tone::Neutral => (p.field, Icon::Info, p.muted),
+    }
+}
+
 /// A banner across the column: a tinted surface with an icon, text that wraps
 /// and whatever `actions` adds at the right. The text is read out when it
 /// appears.
 pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut Ui) -> R) -> R {
-    let p = palette(ui);
-    let (fill, icon, color) = match tone {
-        Tone::Warn => (p.warn_tint, Icon::Warning, p.warn),
-        Tone::Error => (p.error_tint, Icon::Error, p.error),
-        Tone::Info | Tone::Neutral => (p.field, Icon::Info, p.muted),
-    };
+    let (fill, icon, color) = tone_look(palette(ui), tone);
     egui::Frame::new()
         .fill(fill)
         .corner_radius(GROUP_RADIUS)
@@ -1211,15 +1242,10 @@ pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut 
         .inner
 }
 
-/// A notice that just appeared, read out at once: an error banner with a
-/// Dismiss button. True when dismissed.
+/// A notice that just appeared, read out at once: a banner with a Dismiss
+/// button. True when dismissed.
 pub fn notice(ui: &mut Ui, tone: Tone, text: &str) -> bool {
-    let p = palette(ui);
-    let (fill, icon, color) = match tone {
-        Tone::Warn => (p.warn_tint, Icon::Warning, p.warn),
-        Tone::Error => (p.error_tint, Icon::Error, p.error),
-        Tone::Info | Tone::Neutral => (p.field, Icon::Info, p.muted),
-    };
+    let (fill, icon, color) = tone_look(palette(ui), tone);
     egui::Frame::new()
         .fill(fill)
         .corner_radius(GROUP_RADIUS)
@@ -1683,6 +1709,21 @@ mod tests {
         h.key_press(egui::Key::ArrowRight);
         h.run();
         assert!(h.state().device == Device::Cpu);
+        h.key_press(egui::Key::ArrowRight);
+        h.run();
+        assert!(
+            h.state().device == Device::Npu,
+            "a second press wraps round"
+        );
+        h.key_press(egui::Key::ArrowRight);
+        h.run();
+        assert!(
+            h.state().device == Device::Gpu,
+            "and a third moves on from there"
+        );
+        h.key_press(egui::Key::ArrowLeft);
+        h.run();
+        assert!(h.state().device == Device::Npu, "Left goes back");
     }
 
     #[test]
