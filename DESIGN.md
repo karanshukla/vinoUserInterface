@@ -124,7 +124,7 @@ Every colour has one job. `theme::palette(ctx)` gives the current theme's.
 | `text`, `muted` | body text and secondary text: both 4.5:1 on every ground |
 | `accent` | links, the selected nav item, focus rings |
 | `primary_fill`, `primary_text` | the primary button, a switch that is on |
-| `tint` | a selected row, nav item or chip |
+| `tint` | a selected row, nav item or filter chip |
 | `warn`, `warn_tint` | needs the user |
 | `error`, `error_tint` | failed |
 | `kinds` | the four series of a share bar, nowhere else |
@@ -132,11 +132,16 @@ Every colour has one job. `theme::palette(ctx)` gives the current theme's.
 - **Green means on, selected or done.** Not "brand", not decoration. If
   something is green it is one of those three.
 - **Amber means it needs you; red means it failed.** A warning the user can't
-  act on isn't a warning; make it muted text.
+  act on isn't a warning; make it muted text. "Beta" doesn't need you: a
+  `tag` for it is grey.
+- **Colour is for state, never for emphasis.** No accent bullets, icons or
+  dividers, no coloured words to make a line stand out. Weight and position
+  do that.
 - **Don't add colours in an app.** If a window needs one the palette lacks,
   it goes in the palette with a job and a contrast test.
 - **One shadow:** menus and popups. Everything else is flat, separated by
-  hairlines.
+  hairlines: no gradients, glows or glassy panels. The one gradient is
+  `fade_below`, which says there is more to scroll.
 
 ### Type
 
@@ -165,7 +170,7 @@ you. Pass them normal text.
 | button, field, combo box | 30 tall (`CONTROL_HEIGHT`) |
 | small button, in a list row or banner | 26 (`SMALL_HEIGHT`) |
 | switch | 38 x 22 |
-| status chip / filter chip | 24 / 28 tall |
+| status text / filter chip | 24 / 28 tall |
 | nav item | 34 tall |
 | icon | 16 on a body line, 18 to 20 standing alone |
 | row padding | 16 x 12 |
@@ -191,14 +196,24 @@ Every interactive target is at least 24 x 24, or has room around it
 | a low-stakes action next to others (Cancel, Dismiss) | `Button::ghost` | |
 | the action that destroys something | `Button::destructive`, only inside a confirmation | a red button sitting in a page |
 | an action with only an icon | `icon_button`, with a name | a bare `icons::icon` with a click sense |
-| a status at a glance | `chip`, `chip_busy` while it works | coloured text |
+| a status in a few words | `chip`: plain text, amber or red only for a warning or a failure | a dot, a pill, a green "OK" |
+| a wait over about a second that nothing else shows | `spinner` beside words saying what it waits for | a spinner alone, a spinner on a wait the words already describe, animated dots |
+| a wait you can measure | `progress`, with the numbers in the help | a spinner |
 | filtering a list | `toggle_chip` | switches |
-| a label on a thing (Beta, PDF) | `tag` | a chip |
+| a label on a thing (Beta, PDF) | `tag`, grey unless it needs the user | a chip, an amber "Beta" |
 | a shortcut | `keys("Meta+Alt+D")` | plain text |
 | a page-level condition the user should fix | `banner` with its fix as the action | a modal |
 | something worth knowing that needs nothing | `banner` with `Tone::Info` | a warning |
 | something that just failed | `notice` | a modal |
 | pages | `nav_item` in the sidebar, `tab` when narrow | both at once |
+
+- **Icons where they do a job:** an icon-only button (named), the sidebar's
+  nav items, the established ones (close, more, back, search). Not in front
+  of a heading or a label that already says it. A warning or error banner
+  keeps its mark so the tone isn't carried by colour alone; an info banner
+  has none.
+- **Counts the user acts on**, as on a filter chip. No badges or counters
+  that are only there to look busy.
 
 ### Groups and rows
 
@@ -228,9 +243,13 @@ two groups or two pages.
 - **Status in one place.** The app's overall state (running, paused, needs a
   restart) is one `chip` at the foot of the sidebar, live so a screen reader
   hears it change. Per-setting state goes in that row.
-- **Busy means a spinner and words.** `chip_busy("Indexing")`, or a
-  `spinner` beside text saying what is happening. Never a spinner alone.
-  Progress you can measure gets a `progress` bar and the numbers in the help.
+- **Status is words.** `chip` draws its text and nothing else: no dot, no
+  pill. Muted when all is well, amber when it needs the user, red when it
+  failed. A status that is part of a sentence is plain `small` text.
+- **Busy is words first.** "Indexing" says it is working; it needs no
+  spinner. Add a `spinner` beside the words only for a wait of more than
+  about a second that nothing else on screen shows, never alone. Progress
+  you can measure gets a `progress` bar and the numbers in the help.
 - **Follow the desktop.** `theme::install` at start; `follow_desktop` and the
   text scale again whenever the window regains focus. Never ship a theme
   toggle in an app: the desktop has one.
@@ -238,9 +257,11 @@ two groups or two pages.
 ## Motion
 
 Motion is feedback, not decoration. A switch slides, a hover fills, a spinner
-turns at 10 fps. Nothing pulses, glows or bounces to get attention. When the
-desktop asks for reduced motion, `theme::still` is true, transitions are
-instant and the spinner stands still; anything new that moves checks it too.
+turns at 10 fps during a real wait. Nothing pulses, glows, blinks or bounces
+to get attention: no status dots, animated or not, no cycling "..." and no
+animated placeholders. When the desktop asks for reduced motion,
+`theme::still` is true, transitions are instant and the spinner stands
+still; anything new that moves checks it too.
 
 ## Accessibility
 
@@ -265,6 +286,8 @@ windows:
 - Errors say what failed and, if there is one, the way out: "The index
   couldn't be opened: disk full."
 - Contractions are fine. Jargon the user didn't pick isn't.
+- No filler: "Thinking...", "Magic", "Seamlessly", "AI-powered". No emoji.
+  An ellipsis in a status ("Checking…") is fine; one that animates isn't.
 
 ## Checklist for a new window
 

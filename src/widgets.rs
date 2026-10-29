@@ -999,60 +999,46 @@ pub enum ChipKind {
     Neutral,
 }
 
-fn chip_colors(p: &Palette, kind: ChipKind) -> (Color32, Color32) {
+/// The colour a status is written in: muted unless it needs the user (amber)
+/// or failed (red). All is well needs no colour.
+fn chip_color(p: &Palette, kind: ChipKind) -> Color32 {
     match kind {
-        ChipKind::Ok => (p.tint, p.accent),
-        ChipKind::Warn => (p.warn_tint, p.warn),
-        ChipKind::Err => (p.error_tint, p.error),
-        ChipKind::Neutral => (p.field, p.muted),
+        ChipKind::Warn => p.warn,
+        ChipKind::Err => p.error,
+        ChipKind::Ok | ChipKind::Neutral => p.muted,
     }
 }
 
-/// A status at a glance: a pill with a dot and a few words, read as its text.
+/// A status in a few words: its text and nothing else, 24 tall to sit in a
+/// row, read as its text. Muted for `Ok` and `Neutral`, amber for `Warn`,
+/// red for `Err`. No dot and no pill: the words say it.
 pub fn chip(ui: &mut Ui, kind: ChipKind, text: &str) -> Response {
-    chip_inner(ui, kind, text, false)
-}
-
-/// A chip whose dot turns: something is under way.
-pub fn chip_busy(ui: &mut Ui, kind: ChipKind, text: &str) -> Response {
-    chip_inner(ui, kind, text, true)
-}
-
-fn chip_inner(ui: &mut Ui, kind: ChipKind, text: &str, busy: bool) -> Response {
-    let p = palette(ui);
-    let (fill, color) = chip_colors(p, kind);
+    let color = chip_color(palette(ui), kind);
     let galley = ui.painter().layout_no_wrap(
         text.to_owned(),
         FontId::new(12.5, theme::medium()),
         Color32::PLACEHOLDER,
     );
-    let mark = if busy { 14.0 } else { 7.0 };
-    let size = vec2(galley.size().x + mark + 6.0 + 20.0, 24.0);
-    let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x, 24.0), Sense::hover());
     response.widget_info(|| WidgetInfo::labeled(Role::Label, true, text));
-    if !ui.is_rect_visible(rect) {
-        return response;
-    }
-    ui.painter().rect_filled(rect, 12.0, fill);
-    let mark_center = pos2(rect.left() + 10.0 + mark / 2.0, rect.center().y);
-    if busy {
-        paint_spinner(
-            ui,
-            Rect::from_center_size(mark_center, vec2(mark, mark)),
+    if ui.is_rect_visible(rect) {
+        ui.painter().galley(
+            pos2(rect.left(), rect.center().y - galley.size().y / 2.0),
+            galley,
             color,
         );
-    } else {
-        ui.painter().circle_filled(mark_center, 3.5, color);
     }
-    ui.painter().galley(
-        pos2(
-            rect.left() + 10.0 + mark + 6.0,
-            rect.center().y - galley.size().y / 2.0,
-        ),
-        galley,
-        color,
-    );
     response
+}
+
+/// Was a chip with a turning dot. The words already say something is under
+/// way, so it now draws exactly as [`chip`].
+#[deprecated(
+    since = "0.2.1",
+    note = "draws as `chip` now; use `chip`, and a `spinner` beside it only for a wait over about a second that nothing else shows"
+)]
+pub fn chip_busy(ui: &mut Ui, kind: ChipKind, text: &str) -> Response {
+    chip(ui, kind, text)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1067,7 +1053,8 @@ pub enum Tone {
     Neutral,
 }
 
-/// A small caps tag: "Beta" in amber, a kind in grey.
+/// A small caps tag: a kind or "Beta" in grey, amber only when it needs the
+/// user.
 pub fn tag(ui: &mut Ui, tone: Tone, text: &str) -> Response {
     let p = palette(ui);
     let (fill, color) = match tone {
@@ -1233,21 +1220,22 @@ pub fn legend(ui: &mut Ui, color: Color32, text: &str) -> Response {
     .inner
 }
 
-/// A banner's fill, icon and icon colour.
-fn tone_look(p: &Palette, tone: Tone) -> (Color32, Icon, Color32) {
+/// A banner's fill, and its mark and the mark's colour. Only a warning or a
+/// failure has a mark, so the tone isn't carried by colour alone; an info
+/// banner's text says it all.
+fn tone_look(p: &Palette, tone: Tone) -> (Color32, Option<(Icon, Color32)>) {
     match tone {
-        Tone::Warn => (p.warn_tint, Icon::Warning, p.warn),
-        Tone::Error => (p.error_tint, Icon::Error, p.error),
-        Tone::Info => (p.field, Icon::Info, p.text),
-        Tone::Neutral => (p.field, Icon::Info, p.muted),
+        Tone::Warn => (p.warn_tint, Some((Icon::Warning, p.warn))),
+        Tone::Error => (p.error_tint, Some((Icon::Error, p.error))),
+        Tone::Info | Tone::Neutral => (p.field, None),
     }
 }
 
-/// A banner across the column: a tinted surface with an icon, text that wraps
-/// and whatever `actions` adds at the right. The text is read out when it
-/// appears.
+/// A banner across the column: a tinted surface with, for a warning or a
+/// failure, its mark; text that wraps and whatever `actions` adds at the
+/// right. The text is read out when it appears.
 pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut Ui) -> R) -> R {
-    let (fill, icon, color) = tone_look(palette(ui), tone);
+    let (fill, mark) = tone_look(palette(ui), tone);
     egui::Frame::new()
         .fill(fill)
         .corner_radius(GROUP_RADIUS)
@@ -1257,7 +1245,9 @@ pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut 
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
                 ui.set_min_height(CONTROL_HEIGHT);
-                icons::icon(ui, icon, 16.0, color);
+                if let Some((icon, color)) = mark {
+                    icons::icon(ui, icon, 16.0, color);
+                }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let out = actions(ui);
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
@@ -1276,7 +1266,7 @@ pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut 
 /// A notice that just appeared, read out at once: a banner with a Dismiss
 /// button. True when dismissed.
 pub fn notice(ui: &mut Ui, tone: Tone, text: &str) -> bool {
-    let (fill, icon, color) = tone_look(palette(ui), tone);
+    let (fill, mark) = tone_look(palette(ui), tone);
     egui::Frame::new()
         .fill(fill)
         .corner_radius(GROUP_RADIUS)
@@ -1286,7 +1276,9 @@ pub fn notice(ui: &mut Ui, tone: Tone, text: &str) -> bool {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
                 ui.set_min_height(SMALL_HEIGHT);
-                icons::icon(ui, icon, 16.0, color);
+                if let Some((icon, color)) = mark {
+                    icons::icon(ui, icon, 16.0, color);
+                }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let dismissed = ui.add(Button::ghost("Dismiss").small()).clicked();
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
@@ -1304,8 +1296,8 @@ pub fn notice(ui: &mut Ui, tone: Tone, text: &str) -> bool {
 
 // Navigation
 
-/// A sidebar entry: icon, text and an optional tag, tinted when it is the
-/// current page. A tab for screen readers, named `name`.
+/// A sidebar entry: icon, text and an optional grey tag ("Beta"), tinted
+/// when it is the current page. A tab for screen readers, named `name`.
 pub fn nav_item(
     ui: &mut Ui,
     icon: Icon,
@@ -1376,7 +1368,7 @@ pub fn nav_item(
                 ))
                 .layout(Layout::right_to_left(Align::Center)),
         );
-        let shown = tag(&mut badge_ui, Tone::Warn, badge);
+        let shown = tag(&mut badge_ui, Tone::Neutral, badge);
         a11y::decorative(ui, shown.id);
     }
     response
@@ -1543,7 +1535,9 @@ pub fn file_tile(ui: &mut Ui, icon: Icon, size: f32) -> Response {
 }
 
 /// A spinner, 14 px, drawn at 10 fps rather than every frame: egui's own asks
-/// for a repaint as fast as the GPU goes. It stands still when the desktop
+/// for a repaint as fast as the GPU goes. For a wait over about a second that
+/// nothing else on screen shows, beside words saying what it waits for; not
+/// for a wait the words already describe. It stands still when the desktop
 /// asks for less motion, and a screen reader skips it: the text beside it
 /// says what is going on.
 pub fn spinner(ui: &mut Ui) -> Response {
@@ -1722,6 +1716,27 @@ mod tests {
                 clicks: 0,
             },
         )
+    }
+
+    /// A status is still: a busy chip asks for no frames of its own, so
+    /// `run` settles. It read as its text before and still does.
+    #[test]
+    #[allow(deprecated)]
+    fn a_busy_status_is_words_that_stand_still() {
+        let mut h = Harness::builder().with_size((400.0, 100.0)).build_ui_state(
+            |ui, styled: &mut bool| {
+                if !*styled {
+                    theme::apply(ui.ctx());
+                    *styled = true;
+                    ui.ctx().request_repaint();
+                    return;
+                }
+                chip_busy(ui, ChipKind::Neutral, "Checking…");
+            },
+            false,
+        );
+        h.run();
+        h.get_by_role_and_label(Role::Label, "Checking…");
     }
 
     #[test]

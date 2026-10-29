@@ -26,7 +26,7 @@ vino-user-interface = "0.2"
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland"] }
 ```
 
-A settings page: a group of rows, a banner, a status chip.
+A settings page: a group of rows, a banner, a status line.
 
 ```rust
 use eframe::egui;
@@ -102,18 +102,20 @@ cargo run --example gallery
 | Module | Holds |
 |---|---|
 | `theme` | the tokens for dark and light, fonts, egui's visuals and spacing, and what the desktop asks for: light or dark (the Settings portal), text size, reduced motion, KDE's header colours |
-| `widgets` | group + row, switch, segmented control, the four button kinds, status chip, tag, key caps, progress and share bars, banner, notice, nav item, underline tab, selection ring and tint, a 10 fps spinner, the page scroll area, and the layout constants |
+| `widgets` | group + row, switch, segmented control, the four button kinds, status text, filter chip, tag, key caps, progress and share bars, banner, notice, nav item, underline tab, selection ring and tint, a 10 fps spinner for real waits, the page scroll area, and the layout constants |
 | `icons` | a 16 px stroke icon set painted from SVG path data (no icon font), `Icon::ALL` for the lot |
 | `logo` | the three app logos, painted at any size |
 | `a11y` | headings, tabs, list boxes, live regions and naming for screen readers |
 
 <p align="center">
-  <img src="docs/images/widgets-dark.png" width="49%" alt="Every widget in the dark theme: buttons, chips, tags, key caps, banners, icons and logos">
+  <img src="docs/images/widgets-dark.png" width="49%" alt="Every widget in the dark theme: buttons, status text, filter chips, tags, key caps, banners, icons and logos">
   <img src="docs/images/widgets-light.png" width="49%" alt="Every widget in the light theme">
 </p>
 
 Colour has one job each: green means on, selected or done; amber means it
-needs you; red means it failed. Menus and popups are the only shadowed surface.
+needs you; red means it failed. Status is words, not dots or pills, and
+nothing moves but feedback: a switch sliding, a spinner during a real wait.
+Menus and popups are the only shadowed surface.
 
 ## Rules the code keeps
 

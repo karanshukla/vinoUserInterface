@@ -7,8 +7,9 @@
 //!   and spacing, and what the desktop asks for (light or dark, text size,
 //!   reduced motion, KDE's header colours).
 //! - [`widgets`]: the parts every window is made of: groups of rows, switches,
-//!   segmented controls, buttons, chips, tags, key caps, banners, nav items
-//!   and tabs, and a spinner that stands still when motion is reduced.
+//!   segmented controls, buttons, status text, filter chips, tags, key caps,
+//!   banners, nav items and tabs, and a spinner for real waits that stands
+//!   still when motion is reduced.
 //! - [`icons`]: a 16 px stroke icon set painted from SVG paths.
 //! - [`logo`]: the three app logos, painted so they stay sharp at any scale.
 //! - [`a11y`]: names, roles and headings for screen readers, which egui's
