@@ -27,7 +27,7 @@ say which; the fix is a release here, then a version bump in each app.
 | Compromised or yanked dependency | One runtime dependency, egui. cargo-deny checks advisories, licences and sources for what ships (`deny.toml`, crates.io only, dev-dependencies excluded since a user never gets them). `Cargo.lock` is enforced in CI (`--locked`). |
 | Freshly compromised release pulled in | Dependabot waits 7 days before proposing an update (security fixes skip the wait), and nothing auto-merges. |
 | Compromised CI action | Every action is pinned to a commit SHA; workflows get a read-only token and don't keep checkout credentials. |
-| A release that isn't what's in the repo | Releases publish only from a `v*` tag, through crates.io trusted publishing: a short-lived token minted for that run, no stored secret. The workflow reruns every check and refuses a tag that doesn't match `Cargo.toml`'s version. |
+| A release that isn't what's in the repo | Releases publish only from a `v*` tag, through crates.io trusted publishing: a short-lived token minted for that run, no stored secret. The `crates-io` environment accepts only `v*` tags, so a workflow edited on a branch can't publish. The workflow reruns every check and refuses a tag that doesn't match `Cargo.toml`'s version. |
 | Unreviewed change on main | `main` can't be deleted or force-pushed, and changes land through a pull request with the checks passing. |
 
 ## What it doesn't defend against
