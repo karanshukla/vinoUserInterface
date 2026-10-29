@@ -47,7 +47,7 @@ breakpoints; an app reads them, it doesn't pick its own.
 |---|---|---|---|
 | `SIDEBAR_FROM` (702) and up | sidebar, 200 wide | control beside the label | `SIDEBAR_WIDTH`, `PAGE_INSET` |
 | under 702 | underline tabs under the header | beside, until the row is under 440 | `widgets::tab` |
-| row under `NARROW` (440) | tabs | control under the label | `NARROW` |
+| row under `NARROW` (440) | tabs | control under the label, unless it is small enough to leave the label 160 (a switch, a number) | `NARROW` |
 
 `SIDEBAR_FROM` is derived, not chosen: it is the narrowest window where the
 sidebar still leaves a row 440 wide. Below it, the sidebar would cost 200 px
@@ -77,7 +77,8 @@ carefully.
   the docs.
 - **Controls beside labels.** A row with its control beside the label is 54
   px; stacked, the same row is 80 to 100. This is why the breakpoints above
-  protect the side-by-side layout for as long as they can.
+  protect the side-by-side layout for as long as they can, and why a switch
+  stays beside its label even in a narrow row.
 - **Nothing pinned at the bottom** that is taller than one control row. A
   footer of buttons on a 330 px quarter tile eats a third of the window. Save
   happens on change (see [Patterns](#patterns)), so most pages need no
@@ -195,6 +196,7 @@ Every interactive target is at least 24 x 24, or has room around it
 | a label on a thing (Beta, PDF) | `tag` | a chip |
 | a shortcut | `keys("Meta+Alt+D")` | plain text |
 | a page-level condition the user should fix | `banner` with its fix as the action | a modal |
+| something worth knowing that needs nothing | `banner` with `Tone::Info` | a warning |
 | something that just failed | `notice` | a modal |
 | pages | `nav_item` in the sidebar, `tab` when narrow | both at once |
 
@@ -207,8 +209,9 @@ two groups or two pages.
 - Pass a row's control through the `named` function the closure gets, so a
   screen reader calls it by the row's title. A switch takes its name as an
   argument instead.
-- A group masks its corners with the page colour, so **put groups on the
-  page only**, not on a surface or inside another group.
+- A group masks its corners with the page colour. On anything else, a side
+  panel's surface say, use `group_on(ui, ground, ...)` with that colour. Don't
+  nest groups.
 - Free content inside a group (a stats strip, a preview) goes in a
   `group_section`, which pads it like a row.
 

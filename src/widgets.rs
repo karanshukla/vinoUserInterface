@@ -34,6 +34,9 @@ pub const SCROLL_BAR: f32 = 10.0;
 /// snapped to one side gets tabs and wide rows, not a sidebar and stacked ones.
 pub const SIDEBAR_FROM: f32 = SIDEBAR_WIDTH + PAGE_INSET + NARROW + SCROLL_GAP + SCROLL_BAR;
 const GROUP_RADIUS: f32 = 12.0;
+/// In a narrow row, the room a label needs beside its control before the
+/// control goes under it instead.
+const LABEL_MIN: f32 = 160.0;
 const ROW_PADDING: Vec2 = vec2(16.0, 12.0);
 
 fn palette(ui: &Ui) -> &'static Palette {
@@ -130,8 +133,14 @@ pub fn stat(ui: &mut Ui, value: &str, label: &str) -> Response {
 // Groups and rows
 
 /// A surface with a 1 px rule and 12 px corners, holding [`Row`]s separated
-/// by hairlines. The corners stay round whatever a row paints.
+/// by hairlines, on the page. The corners stay round whatever a row paints.
 pub fn group<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    group_on(ui, palette(ui).bg, add)
+}
+
+/// A [`group`] on something other than the page, a side panel's surface say:
+/// what a tinted row paints over the corners is masked in `ground`.
+pub fn group_on<R>(ui: &mut Ui, ground: Color32, add: impl FnOnce(&mut Ui) -> R) -> R {
     let p = palette(ui);
     let outer = ui.available_rect_before_wrap();
     let fill = ui.painter().add(Shape::Noop);
@@ -167,7 +176,7 @@ pub fn group<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
             let a = i as f32 / 8.0 * std::f32::consts::FRAC_PI_2;
             points.push(center - vec2(dx * r * a.cos(), dy * r * a.sin()));
         }
-        painter.add(Shape::convex_polygon(points, p.bg, Stroke::NONE));
+        painter.add(Shape::convex_polygon(points, ground, Stroke::NONE));
     }
     painter.rect_stroke(
         rect,
@@ -296,13 +305,20 @@ fn show_row<R>(
     let line = ui.painter().add(Shape::Noop);
     let content_w = (full.width() - 2.0 * ROW_PADDING.x).max(40.0);
     let left = full.left() + ROW_PADDING.x;
-    let narrow = full.width() < NARROW;
+    // A narrow row stacks, unless its control is small enough to leave the
+    // label LABEL_MIN beside it: a switch, a number. The control's width is
+    // last frame's; a row seen for the first time stacks, and redraws at
+    // once if it didn't need to.
+    let salt = ui.next_auto_id();
+    let width_id = salt.with("control width");
+    let last_control_w = ui.data(|d| d.get_temp::<f32>(width_id));
+    let fits_beside = |control_w: f32| content_w - control_w - 16.0 >= LABEL_MIN;
+    let narrow = full.width() < NARROW && !last_control_w.is_some_and(fits_beside);
     let controls: RefCell<Vec<Id>> = RefCell::new(Vec::new());
     let named = |response: Response| -> Response {
         controls.borrow_mut().push(response.id);
         response
     };
-    let salt = ui.next_auto_id();
     let (out, label_id, content_h) = if narrow {
         let label_rect = Rect::from_min_size(
             pos2(left, top + ROW_PADDING.y),
@@ -326,6 +342,12 @@ fn show_row<R>(
                 .id_salt(salt.with("control")),
         );
         let out = control(&mut control_ui, &named);
+        let control_w = control_ui.min_rect().width().max(0.0);
+        ui.data_mut(|d| d.insert_temp(width_id, control_w));
+        if last_control_w.is_none() && control_w > 0.0 && fits_beside(control_w) {
+            ui.ctx()
+                .request_discard("a row's control fits beside its label");
+        }
         let control_h = control_ui.min_rect().height().max(0.0);
         let bottom = if control_h > 0.0 {
             control_top + control_h.max(CONTROL_HEIGHT)
@@ -334,9 +356,12 @@ fn show_row<R>(
         };
         (out, label_id, bottom - top - ROW_PADDING.y)
     } else {
-        // The control first, centred on the label's likely height; then the
-        // label in what is left.
-        let est_h = estimate(ui, (content_w - 120.0).max(120.0));
+        // The control first, centred on the label's likely height, measured at
+        // the width last frame's control left it; then the label in what is left.
+        let est_w = last_control_w.map_or((content_w - 120.0).max(120.0), |w| {
+            (content_w - w - if w > 0.0 { 16.0 } else { 0.0 }).max(80.0)
+        });
+        let est_h = estimate(ui, est_w);
         let row_h = est_h.max(CONTROL_HEIGHT);
         let content_rect =
             Rect::from_min_size(pos2(left, top + ROW_PADDING.y), vec2(content_w, row_h));
@@ -353,6 +378,7 @@ fn show_row<R>(
         } else {
             0.0
         };
+        ui.data_mut(|d| d.insert_temp(width_id, control_w));
         let gap = if control_w > 0.0 { 16.0 } else { 0.0 };
         let label_w = (content_w - control_w - gap).max(80.0);
         let offset = ((row_h - est_h) / 2.0).max(0.0);
@@ -1031,9 +1057,13 @@ fn chip_inner(ui: &mut Ui, kind: ChipKind, text: &str, busy: bool) -> Response {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tone {
+    /// Worth knowing: a banner's icon in the text colour.
     Info,
+    /// Needs the user: amber.
     Warn,
+    /// Failed: red.
     Error,
+    /// In passing: grey throughout.
     Neutral,
 }
 
@@ -1208,7 +1238,8 @@ fn tone_look(p: &Palette, tone: Tone) -> (Color32, Icon, Color32) {
     match tone {
         Tone::Warn => (p.warn_tint, Icon::Warning, p.warn),
         Tone::Error => (p.error_tint, Icon::Error, p.error),
-        Tone::Info | Tone::Neutral => (p.field, Icon::Info, p.muted),
+        Tone::Info => (p.field, Icon::Info, p.text),
+        Tone::Neutral => (p.field, Icon::Info, p.muted),
     }
 }
 
@@ -1304,11 +1335,28 @@ pub fn nav_item(
         icon,
         color,
     );
-    painter.text(
-        pos2(rect.left() + 36.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        text,
-        FontId::new(14.0, family),
+    // On one line, cut short before the badge.
+    let badge_w = badge.map_or(0.0, |badge| {
+        painter
+            .layout_no_wrap(
+                badge.to_uppercase(),
+                FontId::new(10.5, theme::bold()),
+                Color32::PLACEHOLDER,
+            )
+            .size()
+            .x
+            + 13.0
+            + 8.0
+    });
+    let mut job =
+        egui::text::LayoutJob::simple_singleline(text.to_owned(), FontId::new(14.0, family), color);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(
+        (rect.width() - 36.0 - 10.0 - badge_w).max(0.0),
+    );
+    let galley = painter.layout_job(job);
+    painter.galley(
+        pos2(rect.left() + 36.0, rect.center().y - galley.size().y / 2.0),
+        galley,
         color,
     );
     if response.has_focus() {
@@ -1757,6 +1805,13 @@ mod tests {
             assert!(
                 switch.rect().max.x <= width + 0.5,
                 "{width}: the switch is inside the window"
+            );
+            // A switch is small enough to stay beside its label at any width.
+            let images = h.get_by_role_and_label(Role::Label, "Images");
+            assert!(
+                (switch.rect().center().y - images.rect().bottom()).abs() < 24.0
+                    && switch.rect().min.x > images.rect().max.x,
+                "{width}: the switch sits beside its label"
             );
             let verify = h.get_by_role_and_label(Role::Button, "Verify");
             let title = h.get_by_role_and_label(Role::Label, "Download");
