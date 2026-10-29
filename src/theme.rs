@@ -316,7 +316,7 @@ pub fn apply(ctx: &egui::Context) {
         style.spacing.menu_margin = egui::Margin::same(4);
         style.spacing.combo_width = 200.0;
         style.spacing.scroll = egui::style::ScrollStyle {
-            bar_width: 10.0,
+            bar_width: crate::widgets::SCROLL_BAR,
             ..egui::style::ScrollStyle::solid()
         };
     });
@@ -334,8 +334,11 @@ pub fn install(ctx: &egui::Context) {
 /// One value from the portal's Settings, as busctl prints it ("v u 1").
 fn read_setting(namespace: &str, key: &str) -> Option<String> {
     let output = std::process::Command::new("busctl")
+        // A portal that is still starting would hold the frame for busctl's
+        // default 25 s.
         .args([
             "--user",
+            "--timeout=1",
             "call",
             "org.freedesktop.portal.Desktop",
             "/org/freedesktop/portal/desktop",
@@ -709,6 +712,12 @@ mod tests {
             assert!(
                 primary >= 4.5,
                 "{theme:?}: primary button text is {primary:.2}:1"
+            );
+            // A destructive button writes in the page colour on the error colour.
+            let destructive = contrast(p.bg, p.error);
+            assert!(
+                destructive >= 4.5,
+                "{theme:?}: destructive button text is {destructive:.2}:1"
             );
             for (what, edge) in [
                 ("checkbox and field outline", w.inactive.bg_stroke.color),
