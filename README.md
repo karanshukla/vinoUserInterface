@@ -151,5 +151,7 @@ with grim.
 ## Releasing
 
 Bump `version` in `Cargo.toml`, merge, then push a matching tag:
-`git tag v0.1.1 && git push origin v0.1.1`. The release workflow reruns the
-checks and publishes to crates.io. Then bump each app.
+`git tag -a v0.2.2 -m "vino-user-interface 0.2.2" && git push origin v0.2.2`.
+The release workflow reruns the checks, publishes to crates.io, then creates
+the GitHub Release with notes GitHub generates from the PRs merged since the
+last tag, so PR titles are the changelog. Then bump each app.
