@@ -15,6 +15,8 @@
 //! - [`a11y`]: names, roles and headings for screen readers, which egui's
 //!   painted widgets don't give by themselves.
 
+#![forbid(unsafe_code)]
+
 pub use egui;
 
 pub mod a11y;

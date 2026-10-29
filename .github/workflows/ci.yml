@@ -28,6 +28,16 @@ jobs:
       # What crates.io would get: the include list, the fonts, a build from the tarball.
       - run: cargo publish --dry-run --locked
 
+  # Advisories, licences and sources for what the crate ships (deny.toml).
+  # Not a required check: a new advisory can fail it with no upgrade available.
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+
   # Its own check so a regression reads as one: contrast (WCAG 1.4.3, 1.4.11) over
   # the installed visuals, then tests/a11y.rs over the AccessKit tree: names and
   # roles (4.1.2), target size (2.5.8), Tab order (2.1.1), headings and live regions.

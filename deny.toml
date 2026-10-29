@@ -1,0 +1,21 @@
+[graph]
+targets = ["x86_64-unknown-linux-gnu"]
+# What a crate user gets: egui and its tree. eframe and egui_kittest are
+# dev-dependencies for the gallery and the tests, never shipped.
+exclude-dev = true
+
+[advisories]
+yanked = "deny"
+
+[licenses]
+# OFL-1.1 and Ubuntu-font-1.0 cover the fonts: Inter and JetBrains Mono
+# shipped in assets/fonts, and egui's default fonts.
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "Zlib", "OFL-1.1", "Ubuntu-font-1.0"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
