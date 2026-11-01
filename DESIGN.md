@@ -139,6 +139,16 @@ Every colour has one job. `theme::palette(ctx)` gives the current theme's.
   do that.
 - **Don't add colours in an app.** If a window needs one the palette lacks,
   it goes in the palette with a job and a contrast test.
+- **The ink tiles have colours of their own.** The logos and `file_tile::file`
+  are ink in both themes, with a white mark and one accent, so their colours
+  are constants in the crate, not palette tokens. A file tile's accent names
+  the file's format and nothing else: red PDF, blue writing, orange slides,
+  purple book, yellow subtitles, green Markdown, teal sheet, pink code, cyan
+  image, grey plain text. Like `kinds`, that is their one job: a format, on an
+  ink tile, never a state and never anywhere else. The logos' green and
+  Markdown's `#` are the one place green isn't on, selected or done. Each
+  accent is 3:1 against the ink (`cargo test contrast`), and each mark has a
+  shape that tells it apart without the colour. A new format gets all three.
 - **One shadow:** menus and popups. Everything else is flat, separated by
   hairlines: no gradients, glows or glassy panels. The one gradient is
   `fade_below`, which says there is more to scroll.
@@ -201,6 +211,7 @@ Every interactive target is at least 24 x 24, or has room around it
 | a wait you can measure | `progress`, with the numbers in the help | a spinner |
 | filtering a list | `toggle_chip` | switches |
 | a label on a thing (Beta, PDF) | `tag`, grey unless it needs the user | a chip, an amber "Beta" |
+| a file in a list | `file_tile::file` at 30, its format from the extension; `logo::whisper` for a vinoWhisper session | `widgets::file_tile` with a kind icon, which draws every document the same |
 | a shortcut | `keys("Meta+Alt+D")` | plain text |
 | a page-level condition the user should fix | `banner` with its fix as the action | a modal |
 | something worth knowing that needs nothing | `banner` with `Tone::Info` | a warning |
@@ -208,8 +219,9 @@ Every interactive target is at least 24 x 24, or has room around it
 | pages | `nav_item` in the sidebar, `tab` when narrow | both at once |
 
 - **Icons where they do a job:** an icon-only button (named), the sidebar's
-  nav items, the established ones (close, more, back, search). Not in front
-  of a heading or a label that already says it. A warning or error banner
+  nav items, the established ones (close, more, back, search), and a file
+  tile beside a file's name in a list, where it says the format before the
+  name does. Not in front of a heading or a label that already says it. A warning or error banner
   keeps its mark so the tone isn't carried by colour alone; an info banner
   has none.
 - **Counts the user acts on**, as on a filter chip. No badges or counters

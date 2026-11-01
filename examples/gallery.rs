@@ -8,7 +8,7 @@ use eframe::egui;
 use vino_user_interface::egui::{Align, Layout, RichText, Ui};
 use vino_user_interface::widgets::{self, Edge};
 use vino_user_interface::{
-    Button, ButtonKind, ChipKind, Icon, Row, Tone, a11y, icons, logo, theme,
+    Button, ButtonKind, ChipKind, Format, Icon, Row, Tone, a11y, file_tile, icons, logo, theme,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -402,6 +402,16 @@ impl Gallery {
                     logo::search(ui, 40.0);
                     logo::whisper(ui, 40.0);
                     logo::speak(ui, 40.0);
+                });
+            });
+            // At 30, the size the lists draw them.
+            widgets::group_section(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(12.0, 12.0);
+                    for format in Format::ALL {
+                        file_tile::file(ui, format, 30.0).on_hover_text(format.name());
+                    }
+                    logo::whisper(ui, 30.0).on_hover_text("Session");
                 });
             });
         });
