@@ -8,9 +8,9 @@ use egui::{Color32, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec
 
 use crate::{a11y, icons};
 
-const INK: Color32 = Color32::from_rgb(0x0e, 0x0e, 0x10);
-const WHITE: Color32 = Color32::from_rgb(0xfa, 0xfa, 0xfa);
-const GREEN: Color32 = Color32::from_rgb(0x56, 0xcc, 0x78);
+pub(crate) const INK: Color32 = Color32::from_rgb(0x0e, 0x0e, 0x10);
+pub(crate) const WHITE: Color32 = Color32::from_rgb(0xfa, 0xfa, 0xfa);
+pub(crate) const GREEN: Color32 = Color32::from_rgb(0x56, 0xcc, 0x78);
 
 /// The speech bubble, on the logo's 60-unit grid.
 pub const WHISPER_BUBBLE: &str =
@@ -46,9 +46,9 @@ pub fn speak(ui: &mut Ui, size: f32) -> Response {
     logo(ui, Logo::Speak, size)
 }
 
-/// The tile every logo sits on, and a mapping from the SVG's units: the tile
+/// The tile every logo and file tile sits on, and a mapping from the SVG's units: the tile
 /// fills 4 to 60 of a 64-unit box, drawn edge to edge.
-fn tile(painter: &Painter, rect: Rect) -> (f32, impl Fn(f32, f32) -> Pos2) {
+pub(crate) fn tile(painter: &Painter, rect: Rect) -> (f32, impl Fn(f32, f32) -> Pos2) {
     let k = rect.width().min(rect.height()) / 56.0;
     let origin = rect.min;
     let at = move |x: f32, y: f32| origin + vec2((x - 4.0) * k, (y - 4.0) * k);
@@ -67,7 +67,7 @@ fn tile(painter: &Painter, rect: Rect) -> (f32, impl Fn(f32, f32) -> Pos2) {
 }
 
 /// A stroke with round ends.
-fn capped(painter: &Painter, points: Vec<Pos2>, stroke: Stroke) {
+pub(crate) fn capped(painter: &Painter, points: Vec<Pos2>, stroke: Stroke) {
     if let (Some(first), Some(last)) = (points.first(), points.last()) {
         painter.circle_filled(*first, stroke.width / 2.0, stroke.color);
         painter.circle_filled(*last, stroke.width / 2.0, stroke.color);
