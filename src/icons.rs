@@ -44,11 +44,15 @@ pub enum Icon {
     Key,
     Refresh,
     Check,
+    Face,
+    User,
+    Motion,
+    Sliders,
 }
 
 impl Icon {
     /// Every icon, in the order above.
-    pub const ALL: [Icon; 35] = [
+    pub const ALL: [Icon; 39] = [
         Icon::Search,
         Icon::Folder,
         Icon::Lock,
@@ -84,6 +88,10 @@ impl Icon {
         Icon::Key,
         Icon::Refresh,
         Icon::Check,
+        Icon::Face,
+        Icon::User,
+        Icon::Motion,
+        Icon::Sliders,
     ];
 
     /// The SVG path data, in a 24 × 24 box.
@@ -140,6 +148,20 @@ impl Icon {
                 "M20 11a8 8 0 0 0-14.5-4.5L4 8M4 3v5h5 M4 13a8 8 0 0 0 14.5 4.5L20 16M20 21v-5h-5"
             }
             Icon::Check => "m5 12 5 5 9-10",
+            // A face inside scan corners: face unlock, enrolment.
+            Icon::Face => {
+                "M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2 \
+                 M9 9.5h.01M15 9.5h.01M12 10v3h-1M9 15.5a4 4 0 0 0 6 0"
+            }
+            // Someone's own settings: a person in a circle, set apart from
+            // `Voice`, which is a speaker.
+            Icon::User => {
+                "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6 M6.6 18.2a6.5 6.5 0 0 1 10.8 0"
+            }
+            // A head moving: liveness by motion.
+            Icon::Motion => "M14 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M11.5 10.5h.01M16.5 10.5h.01 M2 9h3M1.5 12h3M2 15h3",
+            // Thresholds and other tuning.
+            Icon::Sliders => "M4 6h8M16 6h4M14 4v4 M4 12h2M10 12h10M8 10v4 M4 18h10M18 18h2M16 16v4",
         }
     }
 
