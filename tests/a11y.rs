@@ -5,6 +5,7 @@ use egui::accesskit::{Action, Role};
 use egui::{Theme, Ui};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
+use vino_user_interface::update::{Status, Updater};
 use vino_user_interface::widgets::{self, NARROW};
 use vino_user_interface::{App, Button, ButtonKind, ChipKind, Icon, Row, Tone, a11y, about, theme};
 
@@ -26,6 +27,7 @@ struct State {
     query: String,
     model: &'static str,
     page: usize,
+    updater: Updater,
 }
 
 fn gallery(ui: &mut Ui, state: &mut State) {
@@ -113,7 +115,7 @@ fn gallery(ui: &mut Ui, state: &mut State) {
             false,
             Some("Beta"),
         );
-        about::page(ui, App::Search, "1.0.0");
+        about::page_with_updates(ui, &mut state.updater);
     });
 }
 
@@ -131,6 +133,9 @@ fn harness(theme: Theme, width: f32) -> Harness<'static, State> {
             query: String::new(),
             model: "Small",
             page: 0,
+            updater: Updater::new(App::Search, "1.0.0")
+                .with_command(["true"])
+                .showing(Status::Available("v2".into())),
         },
     )
 }
@@ -279,4 +284,66 @@ fn structure_is_announced() {
             "{case}: the notice is read out at once"
         );
     });
+}
+
+/// Each state of the About page's update row offers its one control, named.
+#[test]
+fn the_update_row_offers_the_next_step() {
+    let cases: [(Status, bool, Option<&str>); 8] = [
+        (Status::Idle, true, Some("Check for updates")),
+        (Status::Checking, true, None),
+        (Status::UpToDate, true, Some("Check again")),
+        (Status::Available("v2".into()), true, Some("Update to v2")),
+        (
+            Status::Available("v2".into()),
+            false,
+            Some("Open release page"),
+        ),
+        (Status::Installing("v2".into()), true, None),
+        (Status::Installed("v2".into()), true, None),
+        (
+            Status::Failed("Couldn't reach GitHub to check.".into()),
+            true,
+            Some("Try again"),
+        ),
+    ];
+    for (status, installs, button) in cases {
+        let mut updater = Updater::new(App::Search, "1.0.0").showing(status.clone());
+        if installs {
+            updater = updater.with_command(["true"]);
+        }
+        let mut h = Harness::builder().with_size((820.0, 600.0)).build_ui_state(
+            |ui, u: &mut (bool, Updater)| {
+                if !u.0 {
+                    theme::apply(ui.ctx());
+                    u.0 = true;
+                    ui.ctx().request_repaint();
+                    return;
+                }
+                about::page_with_updates(ui, &mut u.1);
+            },
+            (false, updater),
+        );
+        h.run_steps(3);
+        let buttons: Vec<String> = h
+            .root()
+            .children_recursive()
+            .filter(|n| n.accesskit_node().role() == Role::Button)
+            .filter_map(|n| n.accesskit_node().label())
+            .collect();
+        if let Some(button) = button {
+            assert!(
+                buttons.iter().any(|b| b == button),
+                "{status:?}: {buttons:?}"
+            );
+        }
+        for unwanted in ["Check for updates", "Check again", "Try again"] {
+            if Some(unwanted) != button {
+                assert!(
+                    !buttons.iter().any(|b| b == unwanted),
+                    "{status:?} offers {unwanted}: {buttons:?}"
+                );
+            }
+        }
+    }
 }

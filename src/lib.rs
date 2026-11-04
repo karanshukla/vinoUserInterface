@@ -17,15 +17,18 @@
 //! - [`a11y`]: names, roles and headings for screen readers, which egui's
 //!   painted widgets don't give by themselves.
 //! - [`about`]: the About page each window ends with, linking to
-//!   vinopilot.ca and the other apps.
+//!   vinopilot.ca and the other apps, and with an [`update::Updater`], a row
+//!   that checks for a newer release and installs it.
 //!
-//! Two modules need no egui, for the tray processes, which build with
+//! Three modules need no egui, for the tray processes, which build with
 //! `default-features = false`:
 //!
 //! - [`family`]: the vinoPilot apps, their one-line blurbs and their pages
 //!   on vinopilot.ca.
 //! - [`tray`]: the icon theme name for each kind of tray menu item, so every
 //!   tray uses the same ones.
+//! - [`update`]: whether a newer release is out, and running the app's own
+//!   command to install it; the About page's update row draws it.
 
 #![forbid(unsafe_code)]
 
@@ -34,6 +37,7 @@ pub use egui;
 
 pub mod family;
 pub mod tray;
+pub mod update;
 
 #[cfg(feature = "egui")]
 pub mod a11y;
