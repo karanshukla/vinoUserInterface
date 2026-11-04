@@ -289,7 +289,8 @@ fn structure_is_announced() {
 /// Each state of the About page's update row offers its one control, named.
 #[test]
 fn the_update_row_offers_the_next_step() {
-    let cases: [(Status, bool, Option<&str>); 8] = [
+    let cases: [(Status, bool, Option<&str>); 9] = [
+        (Status::Development("v2".into()), true, Some("Check again")),
         (Status::Idle, true, Some("Check for updates")),
         (Status::Checking, true, None),
         (Status::UpToDate, true, Some("Check again")),

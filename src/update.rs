@@ -21,8 +21,11 @@ pub enum Status {
     Idle,
     /// Asking GitHub for the newest release.
     Checking,
-    /// The running version is the newest release, or newer (a dev build).
+    /// The running version is the newest release, or newer.
     UpToDate,
+    /// The running version isn't a release (`dev`, a checkout past a tag);
+    /// the newest release, by its tag. Never offered as an update.
+    Development(String),
     /// A newer release, by its tag.
     Available(String),
     /// The app's update command is running for this tag.
@@ -114,6 +117,7 @@ impl Updater {
         std::thread::spawn(move || {
             let status = match fetch_latest(app) {
                 Ok(latest) if is_newer(&current, &latest) => Status::Available(latest),
+                Ok(latest) if version_parts(&current).is_none() => Status::Development(latest),
                 Ok(_) => Status::UpToDate,
                 Err(e) => Status::Failed(e),
             };
@@ -377,6 +381,14 @@ mod tests {
         assert_eq!(updater.status(), &Status::Installing("v7".into()));
         settle(&mut updater);
         assert_eq!(updater.status(), &Status::Installed("v7".into()));
+    }
+
+    #[test]
+    fn a_dev_build_is_told_what_the_release_is_but_never_offered_it() {
+        let mut updater = Updater::new(App::AuthFace, "dev").with_command(["true"]);
+        updater.status = Status::Development("v7".into());
+        updater.install();
+        assert_eq!(updater.status(), &Status::Development("v7".into()));
     }
 
     #[test]

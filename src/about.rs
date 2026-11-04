@@ -72,6 +72,10 @@ fn update_row(ui: &mut Ui, updater: &mut Updater) {
             format!("{name} {} is the newest release.", updater.current()),
             Tone::Neutral,
         ),
+        Status::Development(tag) => (
+            format!("This is a development build. The newest release is {tag}."),
+            Tone::Neutral,
+        ),
         Status::Available(tag) if updater.can_install() => {
             (format!("{tag} is out."), Tone::Neutral)
         }
@@ -98,7 +102,7 @@ fn update_row(ui: &mut Ui, updater: &mut Updater) {
                     updater.check();
                 }
             }
-            Status::UpToDate => {
+            Status::UpToDate | Status::Development(_) => {
                 if ui.add(Button::secondary("Check again").small()).clicked() {
                     updater.check();
                 }
