@@ -7,13 +7,14 @@
 //! is a `-symbolic` name that both Breeze (KDE) and Adwaita (GNOME) ship:
 //! the host recolours a symbolic icon to the menu's text, light or dark, the
 //! way the painted set follows the window's theme. Breeze draws the status
-//! icons (information, warning) in colour only; a host falls back to those
+//! icons (information, question, warning, error) in colour only; a host falls back to those
 //! by dropping the suffix.
 //!
 //! Which items get one (DESIGN.md, "Tray menus"): every action and submenu
 //! at the top level; not a checkmark or radio item, whose mark is its icon;
 //! not the entries of a list of like things (recent dictations, the other
-//! apps). A row of plain text gets one only when it carries a state.
+//! apps). A row of plain text gets one only when it carries a state, or
+//! when a drawing is its point (vinoWatch's meters).
 
 /// What a menu item is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -33,8 +34,13 @@ pub enum MenuIcon {
     Refresh,
     /// Look for something: check a driver, find a device.
     Search,
+    /// Done, healthy, nothing to do.
+    Ok,
     Info,
+    /// Can't tell.
+    Question,
     Warning,
+    Error,
     /// Add something new: enrol a face.
     Add,
     /// Delete or uninstall.
@@ -61,7 +67,7 @@ pub enum MenuIcon {
 }
 
 impl MenuIcon {
-    pub const ALL: [MenuIcon; 24] = [
+    pub const ALL: [MenuIcon; 27] = [
         MenuIcon::Settings,
         MenuIcon::Quit,
         MenuIcon::Help,
@@ -70,8 +76,11 @@ impl MenuIcon {
         MenuIcon::Apps,
         MenuIcon::Refresh,
         MenuIcon::Search,
+        MenuIcon::Ok,
         MenuIcon::Info,
+        MenuIcon::Question,
         MenuIcon::Warning,
+        MenuIcon::Error,
         MenuIcon::Add,
         MenuIcon::Remove,
         MenuIcon::Cancel,
@@ -100,8 +109,11 @@ impl MenuIcon {
             MenuIcon::Apps => "view-app-grid-symbolic",
             MenuIcon::Refresh => "view-refresh-symbolic",
             MenuIcon::Search => "system-search-symbolic",
+            MenuIcon::Ok => "object-select-symbolic",
             MenuIcon::Info => "dialog-information-symbolic",
+            MenuIcon::Question => "dialog-question-symbolic",
             MenuIcon::Warning => "dialog-warning-symbolic",
+            MenuIcon::Error => "dialog-error-symbolic",
             MenuIcon::Add => "list-add-symbolic",
             MenuIcon::Remove => "edit-delete-symbolic",
             MenuIcon::Cancel => "window-close-symbolic",

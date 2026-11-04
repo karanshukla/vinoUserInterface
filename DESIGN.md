@@ -291,8 +291,9 @@ them and nothing is blank on GNOME.
 - **No icon on a checkmark or radio item**: the mark is its icon.
 - **No icon on the entries of a list of like things** (recent dictations,
   the other apps, a submenu's choices): the submenu's icon covers them.
-- **A plain text row gets one only for a state** (`Info`, `Warning`), or a
-  drawing that is the point, like vinoWatch's meters.
+- **A plain text row gets one only for a state** (`Ok`, `Info`, `Question`,
+  `Warning`, `Error`), or a drawing that is the point, like vinoWatch's
+  meters.
 - **Every tray ends the same way:** a `tray::APPS_MENU` submenu (`Apps`)
   with vinopilot.ca (`Website`) first, a separator, then
   `App::others()` by name; then Quit (`Quit`), last.
