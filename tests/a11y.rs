@@ -6,7 +6,7 @@ use egui::{Theme, Ui};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 use vino_user_interface::widgets::{self, NARROW};
-use vino_user_interface::{Button, ButtonKind, ChipKind, Icon, Row, Tone, a11y, theme};
+use vino_user_interface::{App, Button, ButtonKind, ChipKind, Icon, Row, Tone, a11y, about, theme};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Device {
@@ -113,6 +113,7 @@ fn gallery(ui: &mut Ui, state: &mut State) {
             false,
             Some("Beta"),
         );
+        about::page(ui, App::Search, "1.0.0");
     });
 }
 
