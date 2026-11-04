@@ -275,8 +275,25 @@ each with a link to its part of the site. Don't write an About page of your
 own or list the apps by hand: `family::App` is the one list, so a new app
 appears in every window when the crate is bumped.
 
+An app that can update itself uses `about::page_with_updates(ui, &mut
+updater)` instead, with one `update::Updater` kept for the window's life:
+`Updater::new(App::…, env!("CARGO_PKG_VERSION")).with_command([...])`, the
+app's own upgrade command, which gets the tag in `VINO_UPDATE_TAG`. That adds
+an **Updates** row under the version:
+
+- **Nothing goes online until it's clicked.** The row starts at "Check for
+  updates"; there is no check on open and no check in the background. A tray
+  that offers updates asks the same way, through `update`.
+- **One step at a time:** Check for updates, then "Update to vN" (the
+  page's one primary button), then "Restart vinoX to use vN". A failure is
+  the installer's own reason in red, with Try again.
+- **No command, no install button.** Without `with_command` a newer release
+  links to its release page, so an app can show the check before it can
+  update itself.
+
 A window without page navigation (a GTK dialog, a popup) links the same
-places, taking the names, blurbs and URLs from `family`.
+places, taking the names, blurbs and URLs from `family`, and checks with
+`update::fetch_latest` and `update::is_newer`.
 
 ## Tray menus
 

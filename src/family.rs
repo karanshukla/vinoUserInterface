@@ -75,6 +75,19 @@ impl App {
         }
     }
 
+    /// Its GitHub repository, `owner/name`: where its releases are.
+    pub fn repo(self) -> &'static str {
+        match self {
+            App::Whisper => "karanshukla/vinoWhisper",
+            App::AuthFace => "karanshukla/vinoAuthFace",
+            App::OpenEffects => "karanshukla/vinoOpenEffects",
+            App::Pop => "karanshukla/vinoPop",
+            App::Speak => "karanshukla/vinoSpeak",
+            App::Search => "karanshukla/vinoSearch",
+            App::Watch => "karanshukla/vinoWatch",
+        }
+    }
+
     /// Every app but this one, in the site's order.
     pub fn others(self) -> impl Iterator<Item = App> {
         App::ALL.into_iter().filter(move |app| *app != self)
@@ -106,6 +119,7 @@ mod tests {
             assert!(names.insert(app.name()));
             assert!(pages.insert(app.page()));
             assert!(app.page().starts_with(SITE), "{}", app.page());
+            assert_eq!(app.repo(), format!("karanshukla/{}", app.name()));
             assert_eq!(
                 app.page().rsplit_once('#').map(|(_, anchor)| anchor),
                 Some(app.name().to_lowercase().as_str())
