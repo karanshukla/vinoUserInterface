@@ -266,6 +266,37 @@ two groups or two pages.
   text scale again whenever the window regains focus. Never ship a theme
   toggle in an app: the desktop has one.
 
+## The About page and links between the apps
+
+Every window's page list ends with **About** (`about::TITLE`, `Icon::Info`),
+whose body is `about::page(ui, App::…, env!("CARGO_PKG_VERSION"))`: this
+app, its version and a link to vinopilot.ca, then the other vinoPilot apps,
+each with a link to its part of the site. Don't write an About page of your
+own or list the apps by hand: `family::App` is the one list, so a new app
+appears in every window when the crate is bumped.
+
+A window without page navigation (a GTK dialog, a popup) links the same
+places, taking the names, blurbs and URLs from `family`.
+
+## Tray menus
+
+The desktop draws a tray menu, so it uses the desktop's icon theme, not
+`icons`. Take every icon from `tray::MenuIcon`, by what the item does, never
+a name of your own: one meaning, one icon, in every tray. They are all
+`-symbolic` names that Breeze and Adwaita both ship, so the menu recolours
+them and nothing is blank on GNOME.
+
+- **Icons on actions and submenus at the top level.** Settings, Quit, links,
+  a submenu: each gets its `MenuIcon`.
+- **No icon on a checkmark or radio item**: the mark is its icon.
+- **No icon on the entries of a list of like things** (recent dictations,
+  the other apps, a submenu's choices): the submenu's icon covers them.
+- **A plain text row gets one only for a state** (`Info`, `Warning`), or a
+  drawing that is the point, like vinoWatch's meters.
+- **Every tray ends the same way:** a `tray::APPS_MENU` submenu (`Apps`)
+  with vinopilot.ca (`Website`) first, a separator, then
+  `App::others()` by name; then Quit (`Quit`), last.
+
 ## Motion
 
 Motion is feedback, not decoration. A switch slides, a hover fills, a spinner

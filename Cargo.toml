@@ -1,10 +1,10 @@
 [package]
 name = "vino-user-interface"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT AND OFL-1.1 AND Apache-2.0"
-description = "The egui theme and widgets shared by vinoSearch, vinoWhisper and vinoSpeak"
+description = "The egui theme and widgets shared by the vinoPilot apps, plus their tray menu icons and links to each other"
 repository = "https://github.com/karanshukla/vinoUserInterface"
 readme = "README.md"
 keywords = ["egui", "theme", "widgets", "accessibility", "gui"]
@@ -12,10 +12,15 @@ categories = ["gui"]
 # What a build needs: the code, the fonts it embeds and their licences.
 include = ["/src", "/assets/fonts", "/README.md", "/LICENSE"]
 
+[features]
+default = ["egui"]
+# Everything but `family` and `tray`. The trays turn it off: they link no egui.
+egui = ["dep:egui"]
+
 # Only egui: the apps bring eframe. default_fonts stays on for the glyphs the
 # bundled Latin subsets lack.
 [dependencies]
-egui = { version = "0.37", default-features = false, features = ["default_fonts"] }
+egui = { version = "0.37", default-features = false, features = ["default_fonts"], optional = true }
 
 [dev-dependencies]
 # wgpu and snapshot render tests/screenshots.rs, the README's pictures.
@@ -24,3 +29,15 @@ egui_kittest = { version = "0.37", default-features = false, features = ["wgpu",
 # Joins two renders into the side-by-side picture.
 image = { version = "0.25", default-features = false, features = ["png"] }
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
+
+[[test]]
+name = "a11y"
+required-features = ["egui"]
+
+[[test]]
+name = "screenshots"
+required-features = ["egui"]
+
+[[example]]
+name = "gallery"
+required-features = ["egui"]
