@@ -159,9 +159,13 @@ impl Icon {
                 "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6 M6.6 18.2a6.5 6.5 0 0 1 10.8 0"
             }
             // A head moving: liveness by motion.
-            Icon::Motion => "M14 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M11.5 10.5h.01M16.5 10.5h.01 M2 9h3M1.5 12h3M2 15h3",
+            Icon::Motion => {
+                "M14 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M11.5 10.5h.01M16.5 10.5h.01 M2 9h3M1.5 12h3M2 15h3"
+            }
             // Thresholds and other tuning.
-            Icon::Sliders => "M4 6h8M16 6h4M14 4v4 M4 12h2M10 12h10M8 10v4 M4 18h10M18 18h2M16 16v4",
+            Icon::Sliders => {
+                "M4 6h8M16 6h4M14 4v4 M4 12h2M10 12h10M8 10v4 M4 18h10M18 18h2M16 16v4"
+            }
         }
     }
 
