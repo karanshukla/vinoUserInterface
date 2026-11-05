@@ -12,8 +12,8 @@
 //!
 //! Which items get one (DESIGN.md, "Tray menus"): every action and submenu
 //! at the top level; not a checkmark or radio item, whose mark is its icon;
-//! not the entries of a list of like things (recent dictations, the other
-//! apps). A row of plain text gets one only when it carries a state, or
+//! not the entries of a list of like things (recent dictations, a submenu's
+//! choices). A row of plain text gets one only when it carries a state, or
 //! when a drawing is its point (vinoWatch's meters).
 
 /// What a menu item is for.
@@ -28,8 +28,6 @@ pub enum MenuIcon {
     About,
     /// A link to vinopilot.ca or another web page that isn't help.
     Website,
-    /// The other vinoPilot apps.
-    Apps,
     /// Do it again: retrain, reset, reload.
     Refresh,
     /// Look for something: check a driver, find a device.
@@ -67,13 +65,12 @@ pub enum MenuIcon {
 }
 
 impl MenuIcon {
-    pub const ALL: [MenuIcon; 27] = [
+    pub const ALL: [MenuIcon; 26] = [
         MenuIcon::Settings,
         MenuIcon::Quit,
         MenuIcon::Help,
         MenuIcon::About,
         MenuIcon::Website,
-        MenuIcon::Apps,
         MenuIcon::Refresh,
         MenuIcon::Search,
         MenuIcon::Ok,
@@ -106,7 +103,6 @@ impl MenuIcon {
             MenuIcon::Help => "help-contents-symbolic",
             MenuIcon::About => "help-about-symbolic",
             MenuIcon::Website => "insert-link-symbolic",
-            MenuIcon::Apps => "view-app-grid-symbolic",
             MenuIcon::Refresh => "view-refresh-symbolic",
             MenuIcon::Search => "system-search-symbolic",
             MenuIcon::Ok => "object-select-symbolic",
@@ -134,9 +130,6 @@ impl MenuIcon {
         }
     }
 }
-
-/// The label of the submenu that links to vinopilot.ca and the other apps.
-pub const APPS_MENU: &str = "vinoPilot apps";
 
 #[cfg(test)]
 mod tests {

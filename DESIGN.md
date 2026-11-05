@@ -273,7 +273,8 @@ whose body is `about::page(ui, App::…, env!("CARGO_PKG_VERSION"))`: this
 app, its version and a link to vinopilot.ca, then the other vinoPilot apps,
 each with a link to its part of the site. Don't write an About page of your
 own or list the apps by hand: `family::App` is the one list, so a new app
-appears in every window when the crate is bumped.
+appears in every window when the crate is bumped. The About page is the
+only place the other apps are listed; a tray menu doesn't carry them.
 
 An app that can update itself uses `about::page_with_updates(ui, &mut
 updater)` instead, with one `update::Updater` kept for the window's life:
@@ -307,13 +308,13 @@ them and nothing is blank on GNOME.
   a submenu: each gets its `MenuIcon`.
 - **No icon on a checkmark or radio item**: the mark is its icon.
 - **No icon on the entries of a list of like things** (recent dictations,
-  the other apps, a submenu's choices): the submenu's icon covers them.
+  a submenu's choices): the submenu's icon covers them.
 - **A plain text row gets one only for a state** (`Ok`, `Info`, `Question`,
   `Warning`, `Error`), or a drawing that is the point, like vinoWatch's
   meters.
-- **Every tray ends the same way:** a `tray::APPS_MENU` submenu (`Apps`)
-  with vinopilot.ca (`Website`) first, a separator, then
-  `App::others()` by name; then Quit (`Quit`), last.
+- **Every tray ends with Quit** (`Quit`). A tray doesn't list the other
+  vinoPilot apps or link to vinopilot.ca: a menu is for what the app does,
+  and the About page, which the tray's Settings item opens, has the family.
 
 ## Motion
 
