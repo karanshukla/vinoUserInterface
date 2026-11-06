@@ -1,6 +1,6 @@
 //! The vinoPilot apps and where each one lives on vinopilot.ca, so every
-//! app's About page and tray menu link to the same places with the same
-//! words. No egui here: the tray processes use it too.
+//! app's About page links to the same places with the same words. No egui
+//! here: the tray processes use it too, for their own app's repository.
 
 use std::io;
 use std::process::{Command, Stdio};
