@@ -1702,7 +1702,8 @@ pub fn fade_below<R>(ui: &Ui, scrolled: &egui::scroll_area::ScrollAreaOutput<R>,
 /// drag-to-scroll area (for touch) off since it took a Tab stop, and the
 /// content kept off the bar. `max_width` is `CONTENT_MAX`, or `WIDE_MAX` for a
 /// page of [`columns`], which stays at `CONTENT_MAX` until it is wide enough to
-/// split.
+/// split, or anything else for content that is the point (`f32::INFINITY` for
+/// full width), which is never capped.
 pub fn page_scroll<R>(
     ui: &mut Ui,
     what: &str,
@@ -1723,8 +1724,9 @@ pub fn page_scroll<R>(
             // SCROLL_GAP and SIDEBAR_FROM leaves a row exactly NARROW wide.
             let gap = (SCROLL_GAP - ui.spacing().scroll.bar_inner_margin).max(0.0);
             let width = ui.available_width() - gap;
-            // Too narrow for two columns, a WIDE_MAX page is one column like any other.
-            let max_width = if width < TWO_COLUMNS_FROM {
+            // Too narrow for two columns, a WIDE_MAX page is one column like
+            // any other. Only WIDE_MAX: full-width content stays full width.
+            let max_width = if max_width == WIDE_MAX && width < TWO_COLUMNS_FROM {
                 max_width.min(CONTENT_MAX)
             } else {
                 max_width
@@ -2218,5 +2220,33 @@ mod tests {
                 "{width} at {zoom}x: a stacked column stops at CONTENT_MAX"
             );
         }
+    }
+
+    fn scrolled_field(width: f32, max_width: f32) -> Harness<'static, String> {
+        Harness::builder()
+            .with_size((width + 16.0, 300.0))
+            .build_ui_state(
+                move |ui, text: &mut String| {
+                    page_scroll(ui, "Results", max_width, |ui| {
+                        let w = ui.available_width();
+                        search_field(ui, text, "Search", "Search", w);
+                    });
+                },
+                String::new(),
+            )
+    }
+
+    /// Only a `WIDE_MAX` page falls back to `CONTENT_MAX` when it is too
+    /// narrow to split; full-width content keeps the whole page.
+    #[test]
+    fn only_a_wide_max_page_is_capped_when_narrow() {
+        let width = TWO_COLUMNS_FROM - 100.0;
+        let field_w = |max_width| {
+            let mut h = scrolled_field(width, max_width);
+            h.run_steps(2);
+            h.get_by_role(Role::TextInput).rect().width()
+        };
+        assert!(field_w(WIDE_MAX) <= CONTENT_MAX);
+        assert!(field_w(f32::INFINITY) > CONTENT_MAX + 100.0);
     }
 }
