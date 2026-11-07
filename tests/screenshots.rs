@@ -88,4 +88,6 @@ fn readme_pictures() {
         "side-by-side",
     );
     save(&render(Theme::Dark, Page::General, 380.0, 700.0), "narrow");
+    // A full 1440 x 900 screen: a wider sidebar, and the page in two columns.
+    save(&render(Theme::Dark, Page::General, 1440.0, 860.0), "wide");
 }

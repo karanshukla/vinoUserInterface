@@ -38,14 +38,15 @@ What that means in practice:
 - **Remember the size the user left it at.** Someone who snapped it once
   wants it snapped next time.
 
-## The three widths
+## The four widths
 
-A window has three layouts, picked by width alone. The crate owns the
+A window has four layouts, picked by width alone. The crate owns the
 breakpoints; an app reads them, it doesn't pick its own.
 
 | Window width | Pages | Rows | Constants |
 |---|---|---|---|
-| `SIDEBAR_FROM` (702) and up | sidebar, 200 wide | control beside the label | `SIDEBAR_WIDTH`, `PAGE_INSET` |
+| page `TWO_COLUMNS_FROM` (904) and up, about 1200 | sidebar, groups in two columns | control beside the label | `columns`, `WIDE_MAX` |
+| `SIDEBAR_FROM` (702) and up | sidebar, 200 to 240 wide | control beside the label | `sidebar_width`, `page_inset` |
 | under 702 | underline tabs under the header | beside, until the row is under 440 | `widgets::tab` |
 | row under `NARROW` (440) | tabs | control under the label, unless it is small enough to leave the label 160 (a switch, a number) | `NARROW` |
 
@@ -54,6 +55,23 @@ sidebar still leaves a row 440 wide. Below it, the sidebar would cost 200 px
 and push every row into the stacked layout, which is the worst of both. So
 half a 1366 or 1280 screen gets tabs and wide rows, and half a 1440 screen or
 wider keeps the sidebar.
+
+`TWO_COLUMNS_FROM` is derived the same way: two columns of rows 440 wide and
+the `COLUMN_GAP` (24) between them. It is a page width, not a window width, so
+it moves with the sidebar and the text size; in practice a window splits from
+about 1200, which is a full 1280 or 1366 screen and up.
+
+### Between the breakpoints, the frame grows
+
+The sidebar runs from 200 at `SIDEBAR_FROM` to `SIDEBAR_MAX` (240) at
+`FLUID_TO` (1600), and the page inset from 28 to 40, so a big window doesn't
+look like a small one with empty space bolted on. Call `sidebar_width` and
+`page_inset` with the window's width every frame rather than the constants.
+They grow slowly enough that the page never gets narrower as the window
+widens. Everything inside a row (heights, padding, text) stays fixed: text
+size is the desktop's to set, not the window's.
+
+![A full 1440 x 900 screen: a wider sidebar and the page in two columns](docs/images/wide.png)
 
 ![The same page at 380 wide: tabs, and controls under their labels](docs/images/narrow.png)
 
@@ -96,6 +114,13 @@ carefully.
 - **Settings columns stop at `CONTENT_MAX` (620).** Rows wider than that put
   the label and its control too far apart to read as a pair. The column sits
   at the left, next to the sidebar or tabs, so the eye doesn't travel.
+- **A page with two or more groups goes in `columns`.** Wide, the groups sit
+  side by side, each column capped at `CONTENT_MAX`; narrower, they stack in
+  the order left then right, so put the group that matters first on the
+  left. Its `page_scroll` gets `WIDE_MAX`, and anything above the columns (a
+  search field, a banner) spans both. Below `TWO_COLUMNS_FROM` the page is
+  one `CONTENT_MAX` column again. A page with one group, or rows that only
+  make sense in order, stays one column.
 - **Content that is the point goes full width.** Search results, a session
   transcript, a log, a preview: no cap. A cap there just wastes the width a
   maximised window was maximised for.
@@ -372,10 +397,13 @@ windows:
 ## Checklist for a new window
 
 - [ ] Opens at 960 x 680 or smaller, minimum 340 x 320, remembers its size.
-- [ ] Uses `SIDEBAR_FROM` for sidebar or tabs; no breakpoints of its own.
-- [ ] Looks right at 380 wide, at half of 1366 (679), at 960, and at 2x text.
-- [ ] Settings in groups of rows, in a `page_scroll` capped at `CONTENT_MAX`;
-      content that is the point runs full width.
+- [ ] Uses `SIDEBAR_FROM` for sidebar or tabs, `sidebar_width` and
+      `page_inset` for the frame; no breakpoints of its own.
+- [ ] Looks right at 380 wide, at half of 1366 (679), at 960, at 1440, and
+      at 2x text.
+- [ ] Settings in groups of rows, in a `page_scroll` capped at `CONTENT_MAX`,
+      or at `WIDE_MAX` with the groups in `columns`; content that is the
+      point runs full width.
 - [ ] One primary button at most; destructive actions confirm in place.
 - [ ] No colour, size or spacing that isn't a token.
 - [ ] Every control named; the a11y checks pass in both themes.
