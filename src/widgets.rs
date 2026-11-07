@@ -33,6 +33,20 @@ pub const SCROLL_BAR: f32 = 10.0;
 /// beside their labels. Half a 1366 or 1280 screen is under it, so a window
 /// snapped to one side gets tabs and wide rows, not a sidebar and stacked ones.
 pub const SIDEBAR_FROM: f32 = SIDEBAR_WIDTH + PAGE_INSET + NARROW + SCROLL_GAP + SCROLL_BAR;
+/// The sidebar's widest, and [`PAGE_INSET`]'s: both grow from their
+/// narrowest at [`SIDEBAR_FROM`] to these at [`FLUID_TO`].
+pub const SIDEBAR_MAX: f32 = 240.0;
+pub const PAGE_INSET_MAX: f32 = 40.0;
+/// The window width at which the sidebar and the page inset stop growing.
+pub const FLUID_TO: f32 = 1600.0;
+/// Between the two columns of a [`columns`] page.
+pub const COLUMN_GAP: f32 = 24.0;
+/// The narrowest page that [`columns`] splits in two: each column still
+/// leaves its rows `NARROW` wide, so no control goes under its label.
+pub const TWO_COLUMNS_FROM: f32 = 2.0 * NARROW + COLUMN_GAP;
+/// The widest a page of [`columns`] gets: two `CONTENT_MAX` columns. Give it
+/// to that page's [`page_scroll`] in place of `CONTENT_MAX`.
+pub const WIDE_MAX: f32 = 2.0 * CONTENT_MAX + COLUMN_GAP;
 const GROUP_RADIUS: f32 = 12.0;
 /// In a narrow row, the room a label needs beside its control before the
 /// control goes under it instead.
@@ -1686,7 +1700,9 @@ pub fn fade_below<R>(ui: &Ui, scrolled: &egui::scroll_area::ScrollAreaOutput<R>,
 
 /// The vertical scroll area every page uses: a solid bar always shown, the
 /// drag-to-scroll area (for touch) off since it took a Tab stop, and the
-/// content kept off the bar.
+/// content kept off the bar. `max_width` is `CONTENT_MAX`, or `WIDE_MAX` for a
+/// page of [`columns`], which stays at `CONTENT_MAX` until it is wide enough to
+/// split.
 pub fn page_scroll<R>(
     ui: &mut Ui,
     what: &str,
@@ -1706,7 +1722,14 @@ pub fn page_scroll<R>(
             // content; the rest of SCROLL_GAP comes off here, so the gap is
             // SCROLL_GAP and SIDEBAR_FROM leaves a row exactly NARROW wide.
             let gap = (SCROLL_GAP - ui.spacing().scroll.bar_inner_margin).max(0.0);
-            ui.set_max_width((ui.available_width() - gap).min(max_width));
+            let width = ui.available_width() - gap;
+            // Too narrow for two columns, a WIDE_MAX page is one column like any other.
+            let max_width = if width < TWO_COLUMNS_FROM {
+                max_width.min(CONTENT_MAX)
+            } else {
+                max_width
+            };
+            ui.set_max_width(width.min(max_width));
             let out = add(ui);
             ui.add_space(16.0);
             out
@@ -1714,6 +1737,75 @@ pub fn page_scroll<R>(
     a11y::name_scrolling(ui, &scrolled, what);
     fade_below(ui, &scrolled, p.bg);
     scrolled.inner
+}
+
+/// How far a window this wide is from `SIDEBAR_FROM` to `FLUID_TO`, 0 to 1.
+fn fluid(window: f32) -> f32 {
+    ((window - SIDEBAR_FROM) / (FLUID_TO - SIDEBAR_FROM)).clamp(0.0, 1.0)
+}
+
+/// The sidebar's width in a window this wide: [`SIDEBAR_WIDTH`] at
+/// [`SIDEBAR_FROM`], growing with the window to [`SIDEBAR_MAX`]. Whole
+/// points, so the panel's edge stays on a pixel.
+pub fn sidebar_width(window: f32) -> f32 {
+    (SIDEBAR_WIDTH + (SIDEBAR_MAX - SIDEBAR_WIDTH) * fluid(window)).round()
+}
+
+/// The page's left margin beside the sidebar in a window this wide:
+/// [`PAGE_INSET`] growing to [`PAGE_INSET_MAX`], as [`sidebar_width`] does.
+pub fn page_inset(window: f32) -> f32 {
+    (PAGE_INSET + (PAGE_INSET_MAX - PAGE_INSET) * fluid(window)).round()
+}
+
+/// One of a [`columns`] page's two columns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Column {
+    Left,
+    Right,
+}
+
+/// A page's groups in two columns side by side when the page is at least
+/// [`TWO_COLUMNS_FROM`] wide, the left one above the right otherwise. `add`
+/// is called once per column, left first, so both can borrow the same state.
+/// Each column stops at `CONTENT_MAX`, as a one-column page does. Give the
+/// page's [`page_scroll`] [`WIDE_MAX`] so it has the room. Text size counts:
+/// at 2x zoom a page needs twice the window to split.
+pub fn columns<R>(ui: &mut Ui, mut add: impl FnMut(&mut Ui, Column) -> R) -> [R; 2] {
+    let width = ui.available_width();
+    if width < TWO_COLUMNS_FROM {
+        return [Column::Left, Column::Right].map(|column| {
+            ui.scope(|ui| {
+                ui.set_max_width(width.min(CONTENT_MAX));
+                add(ui, column)
+            })
+            .inner
+        });
+    }
+    let column_w = ((width - COLUMN_GAP) / 2.0).min(CONTENT_MAX);
+    let top_left = ui.available_rect_before_wrap().min;
+    let mut height: f32 = 0.0;
+    let out = [Column::Left, Column::Right].map(|column| {
+        let x = match column {
+            Column::Left => 0.0,
+            Column::Right => column_w + COLUMN_GAP,
+        };
+        let mut child = ui.new_child(
+            UiBuilder::new()
+                .max_rect(Rect::from_min_size(
+                    pos2(top_left.x + x, top_left.y),
+                    vec2(column_w, f32::INFINITY),
+                ))
+                .layout(Layout::top_down(Align::Min)),
+        );
+        let out = add(&mut child, column);
+        height = height.max(child.min_rect().height());
+        out
+    });
+    ui.advance_cursor_after_rect(Rect::from_min_size(
+        top_left,
+        vec2(2.0 * column_w + COLUMN_GAP, height),
+    ));
+    out
 }
 
 /// Whatever `CornerRadius` a group's own corner needs.
@@ -2040,6 +2132,91 @@ mod tests {
                     "{width}: the control sits under its label"
                 );
             }
+        }
+    }
+
+    /// The sidebar and the page inset grow with the window, but never so
+    /// fast that the page itself gets narrower as the window widens.
+    #[test]
+    fn the_sidebar_and_inset_grow_without_shrinking_the_page() {
+        assert_eq!(sidebar_width(SIDEBAR_FROM), SIDEBAR_WIDTH);
+        assert_eq!(page_inset(SIDEBAR_FROM), PAGE_INSET);
+        assert_eq!(sidebar_width(FLUID_TO), SIDEBAR_MAX);
+        assert_eq!(page_inset(FLUID_TO), PAGE_INSET_MAX);
+        assert_eq!(sidebar_width(4000.0), SIDEBAR_MAX);
+        let page = |w: f32| w - sidebar_width(w) - page_inset(w);
+        let mut last = page(SIDEBAR_FROM);
+        let mut w = SIDEBAR_FROM;
+        while w < 2400.0 {
+            w += 1.0;
+            assert!(page(w) >= last, "{w}: the page doesn't shrink");
+            last = page(w);
+        }
+    }
+
+    fn two_groups(width: f32, zoom: f32) -> Harness<'static, (bool, String, String)> {
+        // kittest puts 8 px round the app.
+        Harness::builder()
+            .with_size((width + 16.0, 600.0))
+            .build_ui_state(
+                move |ui, (styled, a, b): &mut (bool, String, String)| {
+                    if !*styled {
+                        theme::apply(ui.ctx());
+                        ui.ctx().set_zoom_factor(zoom);
+                        *styled = true;
+                        ui.ctx().request_repaint();
+                        return;
+                    }
+                    columns(ui, |ui, column| {
+                        let (label, text) = match column {
+                            Column::Left => ("Folder", &mut *a),
+                            Column::Right => ("Cache", &mut *b),
+                        };
+                        group(ui, |ui| {
+                            Row::new(label).show(ui, |ui, named| {
+                                // 300 wide: beside the label only in a row NARROW wide.
+                                named(ui.add(field(text, "", 300.0)));
+                            });
+                        });
+                    });
+                },
+                (false, String::new(), String::new()),
+            )
+    }
+
+    /// From `TWO_COLUMNS_FROM` the columns sit side by side and each row is
+    /// still `NARROW` wide; below it, and at 2x text, they stack.
+    #[test]
+    fn columns_split_only_where_both_keep_wide_rows() {
+        let mut h = two_groups(TWO_COLUMNS_FROM, 1.0);
+        h.run_steps(4);
+        let folder = h.get_by_role_and_label(Role::TextInput, "Folder").rect();
+        let cache = h.get_by_role_and_label(Role::TextInput, "Cache").rect();
+        let label = h.get_by_role_and_label(Role::Label, "Folder").rect();
+        assert!(
+            (folder.center().y - cache.center().y).abs() < 1.0,
+            "side by side"
+        );
+        assert!(
+            cache.min.x > folder.max.x + COLUMN_GAP,
+            "the right column is right"
+        );
+        assert!(
+            (folder.center().y - label.center().y).abs() < 1.0,
+            "the field sits beside its label"
+        );
+        assert_eq!(folder.max.x - label.min.x + 2.0 * ROW_PADDING.x, NARROW);
+
+        for (width, zoom) in [(TWO_COLUMNS_FROM - 1.0, 1.0), (1.5 * TWO_COLUMNS_FROM, 2.0)] {
+            let mut h = two_groups(width, zoom);
+            h.run_steps(4);
+            let folder = h.get_by_role_and_label(Role::TextInput, "Folder").rect();
+            let cache = h.get_by_role_and_label(Role::TextInput, "Cache").rect();
+            assert!(cache.min.y > folder.max.y, "{width} at {zoom}x: stacked");
+            assert!(
+                folder.max.x <= CONTENT_MAX + 8.0,
+                "{width} at {zoom}x: a stacked column stops at CONTENT_MAX"
+            );
         }
     }
 }

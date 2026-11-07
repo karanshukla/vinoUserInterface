@@ -89,7 +89,8 @@ fn main() -> eframe::Result {
 }
 ```
 
-The full window, with the sidebar that folds into tabs at `SIDEBAR_FROM`, is
+The full window, with the sidebar that folds into tabs at `SIDEBAR_FROM` and
+pages that split into two columns on a wide window, is
 [examples/gallery.rs](examples/gallery.rs). Run it and drag the window
 narrower:
 

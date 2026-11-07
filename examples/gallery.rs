@@ -8,7 +8,8 @@ use eframe::egui;
 use vino_user_interface::egui::{RichText, Ui};
 use vino_user_interface::widgets::{self, Edge};
 use vino_user_interface::{
-    Button, ButtonKind, ChipKind, Format, Icon, Row, Tone, a11y, file_tile, icons, logo, theme,
+    Button, ButtonKind, ChipKind, Column, Format, Icon, Row, Tone, a11y, file_tile, icons, logo,
+    theme,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -92,13 +93,14 @@ impl Gallery {
         let ctx = ui.ctx().clone();
         let p = theme::palette(&ctx);
         let header = theme::header(&ctx, None, true);
-        let wide = ctx.content_rect().width() >= widgets::SIDEBAR_FROM;
+        let window = ctx.content_rect().width();
+        let wide = window >= widgets::SIDEBAR_FROM;
 
         if wide {
             egui::Panel::left("pages")
                 .resizable(false)
                 .show_separator_line(false)
-                .exact_size(widgets::SIDEBAR_WIDTH)
+                .exact_size(widgets::sidebar_width(window))
                 .frame(widgets::sidebar_frame(p))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
@@ -165,14 +167,24 @@ impl Gallery {
                     .fill(p.bg)
                     // No right margin: the scroll bar belongs on the window's edge.
                     .inner_margin(egui::Margin {
-                        left: if wide { widgets::PAGE_INSET as i8 } else { 16 },
+                        left: if wide {
+                            widgets::page_inset(window) as i8
+                        } else {
+                            16
+                        },
                         right: 0,
                         top: if wide { 20 } else { 12 },
                         bottom: 0,
                     }),
             )
             .show(ui, |ui| {
-                widgets::page_scroll(ui, self.page.title(), widgets::CONTENT_MAX, |ui| {
+                // Pages of two columns get the room for both; the rest stop at one.
+                let max = if self.page == Page::Shortcuts {
+                    widgets::CONTENT_MAX
+                } else {
+                    widgets::WIDE_MAX
+                };
+                widgets::page_scroll(ui, self.page.title(), max, |ui| {
                     ui.horizontal(|ui| {
                         widgets::title(ui, self.page.title());
                         if self.page == Page::Widgets {
@@ -191,7 +203,6 @@ impl Gallery {
     }
 
     fn general(&mut self, ui: &mut Ui) {
-        let p = theme::palette(ui.ctx());
         widgets::search_field(
             ui,
             &mut self.query,
@@ -199,6 +210,13 @@ impl Gallery {
             "Search",
             ui.available_width(),
         );
+        widgets::columns(ui, |ui, column| match column {
+            Column::Left => self.what_to_index(ui),
+            Column::Right => self.index(ui),
+        });
+    }
+
+    fn what_to_index(&mut self, ui: &mut Ui) {
         widgets::group_label(ui, "What to index");
         widgets::group(ui, |ui| {
             Row::new("Images")
@@ -220,7 +238,10 @@ impl Gallery {
                     named(ui.add(egui::DragValue::new(&mut self.minutes).suffix(" min")));
                 });
         });
+    }
 
+    fn index(&mut self, ui: &mut Ui) {
+        let p = theme::palette(ui.ctx());
         widgets::group_label(ui, "Index");
         widgets::group(ui, |ui| {
             widgets::group_section(ui, |ui| {
@@ -284,6 +305,13 @@ impl Gallery {
                 ui.add(Button::primary("Download").icon(Icon::Download).small());
             },
         );
+        widgets::columns(ui, |ui, column| match column {
+            Column::Left => self.vision_model(ui),
+            Column::Right => text_model(ui),
+        });
+    }
+
+    fn vision_model(&mut self, ui: &mut Ui) {
         widgets::group_label(ui, "Vision model");
         widgets::group(ui, |ui| {
             Row::new("Runs on")
@@ -315,16 +343,17 @@ impl Gallery {
                     ui.add(Button::secondary("Verify").small());
                     widgets::chip(ui, ChipKind::Warn, "Not downloaded");
                 });
-            Row::new("Text model")
-                .help("Downloading, 62 of 140 MB.")
-                .show(ui, |ui, _| {
-                    widgets::progress(ui, 62.0 / 140.0, 120.0);
-                });
         });
     }
 
     fn widgets(&mut self, ui: &mut Ui) {
-        let p = theme::palette(ui.ctx());
+        widgets::columns(ui, |ui, column| match column {
+            Column::Left => self.controls(ui),
+            Column::Right => notices_and_art(ui),
+        });
+    }
+
+    fn controls(&mut self, ui: &mut Ui) {
         widgets::group_label(ui, "Buttons");
         widgets::group(ui, |ui| {
             widgets::group_section(ui, |ui| {
@@ -361,45 +390,60 @@ impl Gallery {
                 });
             });
         });
-        widgets::group_label(ui, "Notices");
-        widgets::banner(
-            ui,
-            Tone::Info,
-            "Indexing pauses on battery below 20 %.",
-            |_| {},
-        );
-        ui.add_space(8.0);
-        widgets::notice(ui, Tone::Error, "The index couldn't be opened: disk full.");
-        widgets::group_label(ui, "Icons and logos");
-        widgets::group(ui, |ui| {
-            widgets::group_section(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(14.0, 12.0);
-                    for icon in Icon::ALL {
-                        icons::icon(ui, icon, 18.0, p.text).on_hover_text(format!("{icon:?}"));
-                    }
-                });
+    }
+}
+
+fn text_model(ui: &mut Ui) {
+    widgets::group_label(ui, "Text model");
+    widgets::group(ui, |ui| {
+        Row::new("Text model")
+            .help("Downloading, 62 of 140 MB.")
+            .show(ui, |ui, _| {
+                widgets::progress(ui, 62.0 / 140.0, 120.0);
             });
-            widgets::group_section(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 16.0;
-                    logo::search(ui, 40.0);
-                    logo::whisper(ui, 40.0);
-                    logo::speak(ui, 40.0);
-                });
-            });
-            // At 30, the size the lists draw them.
-            widgets::group_section(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(12.0, 12.0);
-                    for format in Format::ALL {
-                        file_tile::file(ui, format, 30.0).on_hover_text(format.name());
-                    }
-                    logo::whisper(ui, 30.0).on_hover_text("Session");
-                });
+    });
+}
+
+fn notices_and_art(ui: &mut Ui) {
+    let p = theme::palette(ui.ctx());
+    widgets::group_label(ui, "Notices");
+    widgets::banner(
+        ui,
+        Tone::Info,
+        "Indexing pauses on battery below 20 %.",
+        |_| {},
+    );
+    ui.add_space(8.0);
+    widgets::notice(ui, Tone::Error, "The index couldn't be opened: disk full.");
+    widgets::group_label(ui, "Icons and logos");
+    widgets::group(ui, |ui| {
+        widgets::group_section(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(14.0, 12.0);
+                for icon in Icon::ALL {
+                    icons::icon(ui, icon, 18.0, p.text).on_hover_text(format!("{icon:?}"));
+                }
             });
         });
-    }
+        widgets::group_section(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                logo::search(ui, 40.0);
+                logo::whisper(ui, 40.0);
+                logo::speak(ui, 40.0);
+            });
+        });
+        // At 30, the size the lists draw them.
+        widgets::group_section(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(12.0, 12.0);
+                for format in Format::ALL {
+                    file_tile::file(ui, format, 30.0).on_hover_text(format.name());
+                }
+                logo::whisper(ui, 30.0).on_hover_text("Session");
+            });
+        });
+    });
 }
 
 fn shortcuts(ui: &mut Ui) {
