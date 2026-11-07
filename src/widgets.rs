@@ -37,7 +37,15 @@ const GROUP_RADIUS: f32 = 12.0;
 /// In a narrow row, the room a label needs beside its control before the
 /// control goes under it instead.
 const LABEL_MIN: f32 = 160.0;
+/// Inside a row, a banner or a notice: 16 beside, 12 above and below.
 const ROW_PADDING: Vec2 = vec2(16.0, 12.0);
+/// An icon on a body line or in a button.
+const ICON: f32 = 16.0;
+/// Either side of a tag's text.
+const TAG_PAD: f32 = 6.0;
+/// In a nav item: the icon's centre, and where the text starts.
+const NAV_ICON_CENTRE: f32 = 18.0;
+const NAV_TEXT: f32 = 36.0;
 
 fn palette(ui: &Ui) -> &'static Palette {
     theme::palette(ui.ctx())
@@ -144,10 +152,10 @@ pub fn group_on<R>(ui: &mut Ui, ground: Color32, add: impl FnOnce(&mut Ui) -> R)
     let p = palette(ui);
     let outer = ui.available_rect_before_wrap();
     let fill = ui.painter().add(Shape::Noop);
-    let inner_rect = Rect::from_min_size(
-        outer.min + vec2(1.0, 1.0),
-        vec2(outer.width() - 2.0, f32::INFINITY),
-    );
+    // The rows run to the group's edge, so their 16 x 12 padding is measured
+    // from it, as a banner's is; the rule is painted over the outermost pixel
+    // of that padding.
+    let inner_rect = Rect::from_min_size(outer.min, vec2(outer.width(), f32::INFINITY));
     let inner = ui.scope_builder(
         UiBuilder::new()
             .max_rect(inner_rect)
@@ -158,7 +166,7 @@ pub fn group_on<R>(ui: &mut Ui, ground: Color32, add: impl FnOnce(&mut Ui) -> R)
             add(ui)
         },
     );
-    let bottom = inner.response.rect.bottom().max(outer.top() + 2.0) + 1.0;
+    let bottom = inner.response.rect.bottom().max(outer.top() + 2.0);
     let rect = Rect::from_min_max(outer.min, pos2(outer.right(), bottom));
     let painter = ui.painter();
     painter.set(fill, Shape::rect_filled(rect, GROUP_RADIUS, p.surface));
@@ -333,20 +341,31 @@ fn show_row<R>(
         let label_id = label(&mut label_ui);
         let label_h = label_ui.min_rect().height().max(0.0);
         let control_top = top + ROW_PADDING.y + label_h + if label_h > 0.0 { 10.0 } else { 0.0 };
-        let control_rect =
-            Rect::from_min_size(pos2(left, control_top), vec2(content_w, CONTROL_HEIGHT));
+        // Laid out from the right, as beside the label, so the controls keep
+        // their order when the row stacks: in a box as wide as they were last
+        // frame, pushed to the left edge. A pixel of slack on the left keeps a
+        // rounding error from wrapping the last one.
+        let box_w = last_control_w
+            .filter(|w| *w > 0.0)
+            .map_or(content_w, |w| w.min(content_w));
+        let control_rect = Rect::from_min_max(
+            pos2(left - 1.0, control_top),
+            pos2(left + box_w, control_top + CONTROL_HEIGHT),
+        );
         let mut control_ui = ui.new_child(
             UiBuilder::new()
                 .max_rect(control_rect)
-                .layout(Layout::left_to_right(Align::Center).with_main_wrap(true))
+                .layout(Layout::right_to_left(Align::Center).with_main_wrap(true))
                 .id_salt(salt.with("control")),
         );
         let out = control(&mut control_ui, &named);
         let control_w = control_ui.min_rect().width().max(0.0);
         ui.data_mut(|d| d.insert_temp(width_id, control_w));
-        if last_control_w.is_none() && control_w > 0.0 && fits_beside(control_w) {
-            ui.ctx()
-                .request_discard("a row's control fits beside its label");
+        // Seen for the first time, or changed: draw again at once, beside the
+        // label if it fits there now, or in a box of its new width.
+        let changed = last_control_w.is_none_or(|w| (w - control_w).abs() > 0.5);
+        if control_w > 0.0 && changed {
+            ui.ctx().request_discard("a row's control changed width");
         }
         let control_h = control_ui.min_rect().height().max(0.0);
         let bottom = if control_h > 0.0 {
@@ -755,15 +774,19 @@ pub fn search_field(
     } else {
         Stroke::new(1.0_f32, p.edge)
     };
+    // A Frame adds its stroke outside the margin, so the stroke's width comes
+    // off the margin and the height: the field stays `width` x 38 and its
+    // text where it was when the ring thickens on focus.
+    let ring = stroke.width as i8;
     let frame = egui::Frame::new()
         .fill(p.field)
         .stroke(stroke)
         .corner_radius(10.0)
-        .inner_margin(egui::Margin::symmetric(12, 0));
+        .inner_margin(egui::Margin::symmetric(12 - ring, 0));
     frame
         .show(ui, |ui| {
             ui.set_width(width - 24.0);
-            ui.set_height(38.0);
+            ui.set_height(38.0 - 2.0 * stroke.width);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
                 icons::icon(ui, Icon::Search, 16.0, p.muted);
@@ -871,11 +894,16 @@ impl egui::Widget for Button {
             FontId::new(size, family),
             Color32::PLACEHOLDER,
         );
-        let icon_w = if self.icon.is_some() { 16.0 + 6.0 } else { 0.0 };
         let text_w = if self.text.is_empty() {
             0.0
         } else {
             galley.size().x
+        };
+        // The icon, and a gap after it only when text follows.
+        let icon_w = match (self.icon.is_some(), text_w > 0.0) {
+            (true, true) => ICON + 6.0,
+            (true, false) => ICON,
+            (false, _) => 0.0,
         };
         let width = (text_w + icon_w + 2.0 * pad).max(self.min_width);
         let width = if self.text.is_empty() && self.icon.is_some() {
@@ -956,11 +984,11 @@ impl egui::Widget for Button {
         if let Some(icon) = self.icon {
             icons::paint(
                 painter,
-                Rect::from_center_size(pos2(x + 8.0, rect.center().y), vec2(16.0, 16.0)),
+                Rect::from_center_size(pos2(x + ICON / 2.0, rect.center().y), vec2(ICON, ICON)),
                 icon,
                 color,
             );
-            x += 22.0;
+            x += icon_w;
         }
         if text_w > 0.0 {
             painter.galley(
@@ -1067,17 +1095,13 @@ pub fn tag(ui: &mut Ui, tone: Tone, text: &str) -> Response {
         FontId::new(10.5, theme::bold()),
         Color32::PLACEHOLDER,
     );
-    let size = vec2(galley.size().x + 12.0 + 1.0, 16.0);
+    let size = vec2(galley.size().x + 2.0 * TAG_PAD, 16.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
     response.widget_info(|| WidgetInfo::labeled(Role::Label, true, text));
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         painter.rect_filled(rect, 4.0, fill);
-        painter.galley(
-            pos2(rect.left() + 6.0, rect.center().y - galley.size().y / 2.0),
-            galley,
-            color,
-        );
+        painter.galley(rect.center() - galley.size() / 2.0, galley, color);
     }
     response
 }
@@ -1220,6 +1244,12 @@ pub fn legend(ui: &mut Ui, color: Color32, text: &str) -> Response {
     .inner
 }
 
+/// A banner or notice is padded as a row is, so its text lines up with the
+/// rows above and below it.
+fn row_margin() -> egui::Margin {
+    egui::Margin::symmetric(ROW_PADDING.x as i8, ROW_PADDING.y as i8)
+}
+
 /// A banner's fill, and its mark and the mark's colour. Only a warning or a
 /// failure has a mark, so the tone isn't carried by colour alone; an info
 /// banner's text says it all.
@@ -1239,7 +1269,7 @@ pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut 
     egui::Frame::new()
         .fill(fill)
         .corner_radius(GROUP_RADIUS)
-        .inner_margin(egui::Margin::symmetric(14, 12))
+        .inner_margin(row_margin())
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
@@ -1270,7 +1300,7 @@ pub fn notice(ui: &mut Ui, tone: Tone, text: &str) -> bool {
     egui::Frame::new()
         .fill(fill)
         .corner_radius(GROUP_RADIUS)
-        .inner_margin(egui::Margin::symmetric(14, 12))
+        .inner_margin(row_margin())
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
@@ -1323,7 +1353,10 @@ pub fn nav_item(
     painter.rect_filled(rect, 8.0, fill);
     icons::paint(
         painter,
-        Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), vec2(16.0, 16.0)),
+        Rect::from_center_size(
+            pos2(rect.left() + NAV_ICON_CENTRE, rect.center().y),
+            vec2(ICON, ICON),
+        ),
         icon,
         color,
     );
@@ -1337,17 +1370,20 @@ pub fn nav_item(
             )
             .size()
             .x
-            + 13.0
+            + 2.0 * TAG_PAD
             + 8.0
     });
     let mut job =
         egui::text::LayoutJob::simple_singleline(text.to_owned(), FontId::new(14.0, family), color);
     job.wrap = egui::text::TextWrapping::truncate_at_width(
-        (rect.width() - 36.0 - 10.0 - badge_w).max(0.0),
+        (rect.width() - NAV_TEXT - 10.0 - badge_w).max(0.0),
     );
     let galley = painter.layout_job(job);
     painter.galley(
-        pos2(rect.left() + 36.0, rect.center().y - galley.size().y / 2.0),
+        pos2(
+            rect.left() + NAV_TEXT,
+            rect.center().y - galley.size().y / 2.0,
+        ),
         galley,
         color,
     );
@@ -1441,11 +1477,21 @@ pub fn tab(
 }
 
 /// The header strip's frame: the surface (or KDE's header colour) with a
-/// hairline under it.
+/// hairline under it, 20 x 10/12 inside. An `inner_margin` of your own is
+/// measured from the strip's edge too: the hairline is drawn outside it.
 pub fn header_frame(colors: theme::Header, p: &Palette) -> egui::Frame {
     egui::Frame::new()
         .fill(colors.bg)
         .stroke(Stroke::new(1.0_f32, p.rule))
+        // A Frame draws its stroke round the outside of the margin. Pulled
+        // back a pixel on three sides, that stroke falls off the strip's
+        // edges and only the hairline under it is left.
+        .outer_margin(egui::Margin {
+            left: -1,
+            right: -1,
+            top: -1,
+            bottom: 0,
+        })
         .inner_margin(egui::Margin {
             left: 20,
             right: 20,
@@ -1454,7 +1500,7 @@ pub fn header_frame(colors: theme::Header, p: &Palette) -> egui::Frame {
         })
 }
 
-/// The sidebar's frame: the surface, 14 × 10 inside.
+/// The sidebar's frame: the surface, 10 beside, 14 above and 12 below.
 pub fn sidebar_frame(p: &Palette) -> egui::Frame {
     egui::Frame::new()
         .fill(p.surface)
@@ -1466,6 +1512,50 @@ pub fn sidebar_frame(p: &Palette) -> egui::Frame {
         })
 }
 
+/// The sidebar's top: the app's logo on the nav items' icon column, its name
+/// (15 bold) beside it on their text column, and a line of small text under
+/// the name. The logo is drawn by `logo` at the size it is given, or left out.
+pub fn sidebar_brand(
+    ui: &mut Ui,
+    logo: Option<impl FnOnce(&mut Ui, f32) -> Response>,
+    name: &str,
+    line: &str,
+) {
+    // 24 wide on the icon's centre leaves 6 to the text column.
+    let size = 24.0;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        if let Some(logo) = logo {
+            ui.add_space(NAV_ICON_CENTRE - size / 2.0);
+            logo(ui, size);
+            ui.add_space(NAV_TEXT - NAV_ICON_CENTRE - size / 2.0);
+        } else {
+            ui.add_space(NAV_TEXT);
+        }
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.add(
+                egui::Label::new(RichText::new(name).size(15.0).family(theme::bold())).truncate(),
+            );
+            small(ui, line);
+        });
+    });
+}
+
+/// The sidebar's foot, pinned to its bottom: the app's one status `chip`,
+/// usually. Its contents start on the nav items' icon column.
+pub fn sidebar_foot<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            ui.add_space(NAV_ICON_CENTRE - ICON / 2.0);
+            add(ui)
+        })
+        .inner
+    })
+    .inner
+}
+
 /// Which edge of the window a side panel sits on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edge {
@@ -1473,13 +1563,16 @@ pub enum Edge {
     Right,
 }
 
-/// The hairline on a panel's inner edge, drawn after its content.
+/// The hairline on a panel's inner edge, drawn after its content: on the
+/// panel's last column of pixels, the full height of the panel, whatever
+/// margin its frame has.
 pub fn panel_rule(ui: &Ui, side: Edge) {
     let p = palette(ui);
-    let rect = ui.max_rect();
+    // A panel clips to its own rect, margin included.
+    let rect = ui.clip_rect();
     let x = match side {
-        Edge::Left => rect.right() + ui.spacing().item_spacing.x - 0.5,
-        Edge::Right => rect.left() - 0.5,
+        Edge::Left => rect.right() - 0.5,
+        Edge::Right => rect.left() + 0.5,
     };
     ui.painter()
         .vline(x, rect.y_range(), Stroke::new(1.0_f32, p.rule));
@@ -1609,7 +1702,11 @@ pub fn page_scroll<R>(
             ..Default::default()
         })
         .show(ui, |ui| {
-            ui.set_max_width((ui.available_width() - SCROLL_GAP).min(max_width));
+            // The scroll area already keeps its bar `bar_inner_margin` off the
+            // content; the rest of SCROLL_GAP comes off here, so the gap is
+            // SCROLL_GAP and SIDEBAR_FROM leaves a row exactly NARROW wide.
+            let gap = (SCROLL_GAP - ui.spacing().scroll.bar_inner_margin).max(0.0);
+            ui.set_max_width((ui.available_width() - gap).min(max_width));
             let out = add(ui);
             ui.add_space(16.0);
             out
@@ -1809,6 +1906,108 @@ mod tests {
         assert!(!h.state().images);
         let tab = h.get_by_role_and_label(Role::Tab, "Cleanup (beta)");
         assert_eq!(tab.accesskit_node().is_selected(), Some(false));
+    }
+
+    /// Stacked under its label, a row's controls stay in the order they
+    /// have beside it: the first added is the rightmost either way.
+    #[test]
+    fn a_stacked_row_keeps_the_order_it_has_beside_the_label() {
+        for width in [820.0, 380.0] {
+            let mut h = harness(width);
+            h.run_steps(4);
+            let verify = h.get_by_role_and_label(Role::Button, "Verify").rect();
+            let chip = h.get_by_label("Downloaded, 1.7 GB").rect();
+            assert!(
+                chip.max.x <= verify.min.x,
+                "{width}: the status sits left of the button it was added after"
+            );
+            let title = h.get_by_role_and_label(Role::Label, "Download").rect();
+            if width < NARROW {
+                assert!(verify.min.y >= title.max.y, "{width}: stacked");
+                assert!(
+                    (chip.min.x - title.min.x).abs() < 1.0,
+                    "{width}: the leftmost control starts on the label's column"
+                );
+            }
+        }
+    }
+
+    /// An icon-only button is a square the height of a button.
+    #[test]
+    fn an_icon_only_button_is_square() {
+        let mut h = Harness::builder().with_size((200.0, 100.0)).build_ui_state(
+            |ui, styled: &mut bool| {
+                if !*styled {
+                    theme::apply(ui.ctx());
+                    *styled = true;
+                    ui.ctx().request_repaint();
+                    return;
+                }
+                icon_button(ui, ButtonKind::Secondary, Icon::Refresh, "Refresh");
+                ui.add(Button::secondary("Refresh all").icon(Icon::Refresh));
+            },
+            false,
+        );
+        h.run();
+        let square = h.get_by_role_and_label(Role::Button, "Refresh").rect();
+        assert_eq!(square.size(), vec2(CONTROL_HEIGHT, CONTROL_HEIGHT));
+    }
+
+    /// `SIDEBAR_FROM` is the narrowest window where a sidebar, the page inset
+    /// and the page scroll leave a row `NARROW` wide: a control too wide to
+    /// share a narrower row with its label still sits beside it there.
+    #[test]
+    fn the_sidebar_breakpoint_leaves_a_row_exactly_narrow() {
+        // kittest puts 8 px round the app: the ui inside is SIDEBAR_FROM wide.
+        let mut h = Harness::builder()
+            .with_size((SIDEBAR_FROM + 16.0, 400.0))
+            .build_ui_state(
+                |ui, (styled, text): &mut (bool, String)| {
+                    if !*styled {
+                        theme::apply(ui.ctx());
+                        *styled = true;
+                        ui.ctx().request_repaint();
+                        return;
+                    }
+                    let p = palette(ui);
+                    egui::Panel::left("pages")
+                        .resizable(false)
+                        .show_separator_line(false)
+                        .exact_size(SIDEBAR_WIDTH)
+                        .frame(sidebar_frame(p))
+                        .show(ui, |ui| {
+                            nav_item(ui, Icon::Settings, "General", "General", true, None);
+                        });
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE.inner_margin(egui::Margin {
+                            left: PAGE_INSET as i8,
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                        }))
+                        .show(ui, |ui| {
+                            page_scroll(ui, "General", CONTENT_MAX, |ui| {
+                                group(ui, |ui| {
+                                    Row::new("Folder").show(ui, |ui, named| {
+                                        // 300 wide: beside the label only
+                                        // because the row is NARROW wide.
+                                        named(ui.add(field(text, "", 300.0)));
+                                    });
+                                });
+                            });
+                        });
+                },
+                (false, String::new()),
+            );
+        h.run_steps(4);
+        let label = h.get_by_role_and_label(Role::Label, "Folder").rect();
+        let field = h.get_by_role_and_label(Role::TextInput, "Folder").rect();
+        assert!(
+            (field.center().y - label.center().y).abs() < 1.0,
+            "the field sits beside its label at SIDEBAR_FROM"
+        );
+        // Padding to padding, the row is NARROW wide.
+        assert_eq!(field.max.x - label.min.x + 2.0 * ROW_PADDING.x, NARROW);
     }
 
     #[test]

@@ -183,7 +183,9 @@ you. Pass them normal text.
 | status text / filter chip | 24 / 28 tall |
 | nav item | 34 tall |
 | icon | 16 on a body line, 18 to 20 standing alone |
-| row padding | 16 x 12 |
+| row padding, banner and notice padding | 16 x 12 |
+| tag padding | 6 beside, 16 tall |
+| sidebar | 10 beside; nav icon centred 18 in, text 36 in; logo 24 |
 | spacing between items | 8 |
 | corner radius | 8 controls, 10 menus and the search field, 12 groups and banners |
 
@@ -241,6 +243,22 @@ two groups or two pages.
   nest groups.
 - Free content inside a group (a stats strip, a preview) goes in a
   `group_section`, which pads it like a row.
+- A row lays its controls out from the right: the first one added is the
+  rightmost (Delete, then Cancel to its left). When the row stacks, the
+  controls keep that order under the label, so nothing swaps places as the
+  window narrows.
+- A `banner` or `notice` is padded as a row is (16 x 12, from its edge), so
+  its text sits on the same column as the rows above and below it.
+
+### The sidebar
+
+`sidebar_frame` holds `sidebar_brand` (the logo, 24 wide on the nav items'
+icon column, the app's name on their text column, a line of small text under
+it), the `nav_item`s, and `sidebar_foot` (the status `chip`, starting on the
+icon column) pinned at the bottom; `panel_rule` draws the hairline on the
+panel's edge after them. A narrow window's `header_frame` takes the same
+`inner_margin` numbers the page uses: the hairline under it is drawn outside
+the margin, not out of it.
 
 ## Patterns
 

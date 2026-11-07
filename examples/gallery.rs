@@ -5,7 +5,7 @@
 //! pictures from it.
 
 use eframe::egui;
-use vino_user_interface::egui::{Align, Layout, RichText, Ui};
+use vino_user_interface::egui::{RichText, Ui};
 use vino_user_interface::widgets::{self, Edge};
 use vino_user_interface::{
     Button, ButtonKind, ChipKind, Format, Icon, Row, Tone, a11y, file_tile, icons, logo, theme,
@@ -102,19 +102,7 @@ impl Gallery {
                 .frame(widgets::sidebar_frame(p))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.horizontal(|ui| {
-                        ui.add_space(8.0);
-                        logo::search(ui, 28.0);
-                        ui.vertical(|ui| {
-                            ui.spacing_mut().item_spacing.y = 0.0;
-                            ui.label(
-                                RichText::new("vino gallery")
-                                    .size(15.0)
-                                    .family(theme::bold()),
-                            );
-                            widgets::small(ui, "Settings");
-                        });
-                    });
+                    widgets::sidebar_brand(ui, Some(logo::search), "vino gallery", "Settings");
                     ui.add_space(14.0);
                     a11y::tab_list(ui, "Pages");
                     for page in Page::ALL {
@@ -132,12 +120,8 @@ impl Gallery {
                             self.page = page;
                         }
                     }
-                    ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-                        ui.add_space(2.0);
-                        ui.horizontal(|ui| {
-                            ui.add_space(4.0);
-                            a11y::live(&widgets::chip(ui, ChipKind::Ok, "Index up to date"));
-                        });
+                    widgets::sidebar_foot(ui, |ui| {
+                        a11y::live(&widgets::chip(ui, ChipKind::Ok, "Index up to date"));
                     });
                     widgets::panel_rule(ui, Edge::Left);
                 });
