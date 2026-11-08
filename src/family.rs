@@ -15,6 +15,7 @@ pub const SITE_LABEL: &str = "vinopilot.ca";
 /// One vinoPilot app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum App {
+    Pilot,
     Whisper,
     AuthFace,
     OpenEffects,
@@ -26,7 +27,8 @@ pub enum App {
 
 impl App {
     /// Every app, in the order vinopilot.ca lists them.
-    pub const ALL: [App; 7] = [
+    pub const ALL: [App; 8] = [
+        App::Pilot,
         App::Whisper,
         App::AuthFace,
         App::OpenEffects,
@@ -38,6 +40,7 @@ impl App {
 
     pub fn name(self) -> &'static str {
         match self {
+            App::Pilot => "vinoPilot",
             App::Whisper => "vinoWhisper",
             App::AuthFace => "vinoAuthFace",
             App::OpenEffects => "vinoOpenEffects",
@@ -52,6 +55,7 @@ impl App {
     /// stop.
     pub fn blurb(self) -> &'static str {
         match self {
+            App::Pilot => "One app to install and update the rest",
             App::Whisper => "Live captions and voice typing",
             App::AuthFace => "Unlock with your face",
             App::OpenEffects => "Look better on video calls",
@@ -65,6 +69,7 @@ impl App {
     /// Its section of vinopilot.ca/apps.
     pub fn page(self) -> &'static str {
         match self {
+            App::Pilot => "https://vinopilot.ca/apps/#vinopilot",
             App::Whisper => "https://vinopilot.ca/apps/#vinowhisper",
             App::AuthFace => "https://vinopilot.ca/apps/#vinoauthface",
             App::OpenEffects => "https://vinopilot.ca/apps/#vinoopeneffects",
@@ -78,6 +83,7 @@ impl App {
     /// Its GitHub repository, `owner/name`: where its releases are.
     pub fn repo(self) -> &'static str {
         match self {
+            App::Pilot => "karanshukla/vinoPilot",
             App::Whisper => "karanshukla/vinoWhisper",
             App::AuthFace => "karanshukla/vinoAuthFace",
             App::OpenEffects => "karanshukla/vinoOpenEffects",
