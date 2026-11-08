@@ -147,15 +147,18 @@ Every colour has one job. `theme::palette(ctx)` gives the current theme's.
 | `rule_strong` | the outline of a button or a menu |
 | `edge` | the outline of a field or checkbox, slider rails, scroll handles: 3:1 |
 | `text`, `muted` | body text and secondary text: both 4.5:1 on every ground |
-| `accent` | links, the selected nav item, focus rings |
-| `primary_fill`, `primary_text` | the primary button, a switch that is on |
+| `accent` | links, the selected nav item's icon, focus rings |
+| `primary_fill`, `primary_text` | the primary button: ink on light, near-white on dark |
+| `on`, `switch_knob` | a switch that is on |
+| `danger`, `danger_text` | the destructive button |
 | `tint` | a selected row, nav item or filter chip |
-| `warn`, `warn_tint` | needs the user |
-| `error`, `error_tint` | failed |
+| `warn`, `warn_tint`, `warn_rule` | needs the user |
+| `error`, `error_tint`, `error_rule` | failed |
 | `kinds` | the four series of a share bar, nowhere else |
 
 - **Green means on, selected or done.** Not "brand", not decoration. If
-  something is green it is one of those three.
+  something is green it is one of those three. That is why the primary
+  button is ink, in both themes, and not green.
 - **Amber means it needs you; red means it failed.** A warning the user can't
   act on isn't a warning; make it muted text. "Beta" doesn't need you: a
   `tag` for it is grey.
@@ -191,12 +194,12 @@ Inter for everything, JetBrains Mono for paths and commands only.
 | body | 14 | regular | `ui.label` |
 | button | 13.5 (12.5 small) | medium, semibold for primary | `Button` |
 | help, captions | 12.5 | regular, muted | `small`, `group_help` |
-| group label | 12, caps, +0.7 spacing | semibold, muted | `group_label` |
-| tag | 10.5, caps | bold | `tag` |
+| group label | 13, sentence case | semibold, muted | `group_label` |
+| tag | 10.5, caps | semibold | `tag` |
 | path, command | 12.5 | mono | `mono` |
 
-Sentence case everywhere except the two caps styles, which the widgets do for
-you. Pass them normal text.
+Sentence case everywhere except tags, which the widget capitalises for you.
+Pass it normal text.
 
 ### Size and space
 
@@ -204,7 +207,7 @@ you. Pass them normal text.
 |---|---|
 | button, field, combo box | 30 tall (`CONTROL_HEIGHT`) |
 | small button, in a list row or banner | 26 (`SMALL_HEIGHT`) |
-| switch | 38 x 22 |
+| switch | 36 x 20 |
 | status text / filter chip | 24 / 28 tall |
 | nav item | 34 tall |
 | icon | 16 on a body line, 18 to 20 standing alone |
@@ -212,7 +215,7 @@ you. Pass them normal text.
 | tag padding | 6 beside, 16 tall |
 | sidebar | 10 beside; nav icon centred 18 in, text 36 in; logo 24 |
 | spacing between items | 8 |
-| corner radius | 8 controls, 10 menus and the search field, 12 groups and banners |
+| corner radius | 8 controls, 10 groups, banners, menus and the search field |
 
 Spacing comes from the scale 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28. Reach for
 8 first. Don't invent 9.
