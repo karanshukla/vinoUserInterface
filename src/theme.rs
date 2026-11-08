@@ -34,20 +34,30 @@ pub struct Palette {
     pub edge: Color32,
     pub text: Color32,
     pub muted: Color32,
-    /// Links, the selected nav item, focus rings, a switch that is on.
+    /// Links, the selected nav item's icon, focus rings.
     pub accent: Color32,
-    /// The primary button's fill and the switch's "on" track.
+    /// The primary button's fill: ink on light, near-white on dark. Never
+    /// green: green is kept for on, selected and done.
     pub primary_fill: Color32,
     /// Text on `primary_fill`.
     pub primary_text: Color32,
-    /// The knob of a switch that is on.
+    /// The track of a switch that is on.
+    pub on: Color32,
+    /// The knob of a switch that is on, on `on`.
     pub switch_knob: Color32,
+    /// A destructive button's fill, and its text.
+    pub danger: Color32,
+    pub danger_text: Color32,
     /// A selected row, nav item or chip: the accent at 10–14 %.
     pub tint: Color32,
     pub warn: Color32,
     pub warn_tint: Color32,
+    /// The hairline round a warning banner.
+    pub warn_rule: Color32,
     pub error: Color32,
     pub error_tint: Color32,
+    /// The hairline round an error banner.
+    pub error_rule: Color32,
     /// The index's kinds, for share bars: text, documents, images, code.
     pub kinds: [Color32; 4],
 }
@@ -70,46 +80,56 @@ const fn rgba(hex: u32, alpha: u8) -> Color32 {
 }
 
 pub const DARK: Palette = Palette {
-    bg: rgb(0x121315),
+    bg: rgb(0x0f1012),
     surface: rgb(0x17181b),
-    field: rgb(0x1e2023),
-    pressed: rgb(0x26282c),
-    rule: rgb(0x2a2c30),
-    rule_strong: rgb(0x3d4046),
-    edge: rgb(0x6b6f77),
-    text: rgb(0xe4e5e8),
-    muted: rgb(0x9a9ea6),
-    accent: rgb(0x7bdc97),
-    primary_fill: rgb(0x56cc78),
-    primary_text: rgb(0x0e0e10),
-    switch_knob: rgb(0x0e0e10),
-    tint: rgba(0x56cc78, 36),
-    warn: rgb(0xf2b65c),
-    warn_tint: rgba(0xf2b65c, 31),
-    error: rgb(0xf28b82),
-    error_tint: rgba(0xf28b82, 31),
+    field: rgb(0x1f2124),
+    pressed: rgb(0x2b2d31),
+    rule: rgb(0x26282c),
+    rule_strong: rgb(0x3a3d43),
+    edge: rgb(0x6e727a),
+    text: rgb(0xe8e9ec),
+    muted: rgb(0x9ea2aa),
+    accent: rgb(0x6fd496),
+    primary_fill: rgb(0xecedef),
+    primary_text: rgb(0x111214),
+    on: rgb(0x4cc47a),
+    switch_knob: rgb(0x0f1012),
+    danger: rgb(0xc4362c),
+    danger_text: rgb(0xffffff),
+    tint: rgba(0x4cc47a, 33),
+    warn: rgb(0xf0b45e),
+    warn_tint: rgba(0xf0b45e, 26),
+    warn_rule: rgba(0xf0b45e, 71),
+    error: rgb(0xf2877e),
+    error_tint: rgba(0xf2877e, 26),
+    error_rule: rgba(0xf2877e, 71),
     kinds: [rgb(0x56cc78), rgb(0x6ea8fe), rgb(0xb38cf0), rgb(0x9a9ea6)],
 };
 
 pub const LIGHT: Palette = Palette {
-    bg: rgb(0xfcfcfc),
+    bg: rgb(0xf4f5f6),
     surface: rgb(0xffffff),
-    field: rgb(0xeef0f2),
-    pressed: rgb(0xe3e5e8),
-    rule: rgb(0xe2e3e6),
-    rule_strong: rgb(0xc9cbd0),
-    edge: rgb(0x7f838b),
-    text: rgb(0x1c1d20),
-    muted: rgb(0x5d6068),
-    accent: rgb(0x1a7040),
-    primary_fill: rgb(0x0e0e10),
-    primary_text: rgb(0xfafafa),
+    field: rgb(0xf0f1f3),
+    pressed: rgb(0xe5e7ea),
+    rule: rgb(0xe3e5e8),
+    rule_strong: rgb(0xcdd0d5),
+    edge: rgb(0x858a92),
+    text: rgb(0x17181a),
+    muted: rgb(0x5b5f67),
+    accent: rgb(0x166f44),
+    primary_fill: rgb(0x17181a),
+    primary_text: rgb(0xffffff),
+    on: rgb(0x1e8a50),
     switch_knob: rgb(0xffffff),
-    tint: rgba(0x1a7040, 26),
+    danger: rgb(0xb3261e),
+    danger_text: rgb(0xffffff),
+    tint: rgba(0x166f44, 24),
     warn: rgb(0x8a5300),
-    warn_tint: rgba(0xb26e00, 26),
+    warn_tint: rgba(0xb26e00, 24),
+    warn_rule: rgba(0xb26e00, 64),
     error: rgb(0xb3261e),
     error_tint: rgba(0xb3261e, 20),
+    error_rule: rgba(0xb3261e, 56),
     kinds: [rgb(0x1f8a4c), rgb(0x2f6fdb), rgb(0x7b4fd0), rgb(0x6b6f77)],
 };
 
@@ -713,8 +733,7 @@ pub(crate) mod tests {
                 primary >= 4.5,
                 "{theme:?}: primary button text is {primary:.2}:1"
             );
-            // A destructive button writes in the page colour on the error colour.
-            let destructive = contrast(p.bg, p.error);
+            let destructive = contrast(p.danger_text, p.danger);
             assert!(
                 destructive >= 4.5,
                 "{theme:?}: destructive button text is {destructive:.2}:1"
@@ -725,7 +744,7 @@ pub(crate) mod tests {
                 ("hovered outline", w.hovered.bg_stroke.color),
                 ("focus outline", w.active.bg_stroke.color),
                 ("text selection outline", v.selection.stroke.color),
-                ("switch on", p.primary_fill),
+                ("switch on", p.on),
             ] {
                 for (on, bg) in [("page", p.bg), ("surface", p.surface), ("field", p.field)] {
                     let ratio = contrast(edge, bg);
@@ -735,7 +754,7 @@ pub(crate) mod tests {
             // The tick inside a checkbox, on the box's fill, and a switch's knob.
             let tick = contrast(w.inactive.fg_stroke.color, w.inactive.bg_fill);
             assert!(tick >= 3.0, "{theme:?}: checkbox tick is {tick:.2}:1");
-            let knob = contrast(p.switch_knob, p.primary_fill);
+            let knob = contrast(p.switch_knob, p.on);
             assert!(knob >= 3.0, "{theme:?}: switch knob is {knob:.2}:1");
         }
     }

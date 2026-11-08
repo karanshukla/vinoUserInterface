@@ -47,7 +47,7 @@ pub const TWO_COLUMNS_FROM: f32 = 2.0 * NARROW + COLUMN_GAP;
 /// The widest a page of [`columns`] gets: two `CONTENT_MAX` columns. Give it
 /// to that page's [`page_scroll`] in place of `CONTENT_MAX`.
 pub const WIDE_MAX: f32 = 2.0 * CONTENT_MAX + COLUMN_GAP;
-const GROUP_RADIUS: f32 = 12.0;
+const GROUP_RADIUS: f32 = 10.0;
 /// In a narrow row, the room a label needs beside its control before the
 /// control goes under it instead.
 const LABEL_MIN: f32 = 160.0;
@@ -98,17 +98,16 @@ pub fn window_title(ui: &mut Ui, text: &str, color: Color32) -> Response {
     response
 }
 
-/// A group's label above it: small caps, muted, a level-2 heading. With a
-/// count, the count follows in the same size at regular weight.
+/// A group's label above it: 13 semibold, muted, in sentence case as
+/// passed, a level-2 heading.
 pub fn group_label(ui: &mut Ui, text: &str) -> Response {
     ui.add_space(14.0);
     let p = palette(ui);
     let response = ui.add(
         egui::Label::new(
-            RichText::new(text.to_uppercase())
-                .size(12.0)
+            RichText::new(text)
+                .size(13.0)
                 .family(theme::semibold())
-                .extra_letter_spacing(0.7)
                 .color(p.muted),
         )
         .truncate(),
@@ -154,7 +153,7 @@ pub fn stat(ui: &mut Ui, value: &str, label: &str) -> Response {
 
 // Groups and rows
 
-/// A surface with a 1 px rule and 12 px corners, holding [`Row`]s separated
+/// A surface with a 1 px rule and 10 px corners, holding [`Row`]s separated
 /// by hairlines, on the page. The corners stay round whatever a row paints.
 pub fn group<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
     group_on(ui, palette(ui).bg, add)
@@ -500,12 +499,12 @@ pub fn group_section<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
 
 // Choices
 
-/// A switch: 38 × 22, green when on. `name` is what a screen reader calls it,
+/// A switch: 36 × 20, green when on. `name` is what a screen reader calls it,
 /// usually the row's title; nothing is painted beside it.
 pub fn switch(ui: &mut Ui, on: &mut bool, name: &str) -> Response {
     let p = palette(ui);
     let enabled = ui.is_enabled();
-    let (rect, mut response) = ui.allocate_exact_size(vec2(38.0, 22.0), Sense::click());
+    let (rect, mut response) = ui.allocate_exact_size(vec2(36.0, 20.0), Sense::click());
     if response.clicked() {
         *on = !*on;
         response.mark_changed();
@@ -516,23 +515,23 @@ pub fn switch(ui: &mut Ui, on: &mut bool, name: &str) -> Response {
         return response;
     }
     let t = ui.ctx().animate_bool_responsive(response.id, is_on);
-    let track = p.pressed.lerp_to_gamma(p.primary_fill, t);
-    let edge = p.edge.lerp_to_gamma(p.primary_fill, t);
-    let knob = p.muted.lerp_to_gamma(p.switch_knob, t);
+    let track = p.pressed.lerp_to_gamma(p.on, t);
+    let edge = p.edge.lerp_to_gamma(p.on, t);
+    let knob = p.edge.lerp_to_gamma(p.switch_knob, t);
     let painter = ui.painter();
     painter.rect(
         rect,
-        11.0,
+        10.0,
         faded(track, enabled),
         Stroke::new(1.0_f32, faded(edge, enabled)),
         StrokeKind::Inside,
     );
-    let x = rect.left() + 11.0 + 16.0 * t;
+    let x = rect.left() + 10.0 + 16.0 * t;
     painter.circle_filled(pos2(x, rect.center().y), 7.0, faded(knob, enabled));
     if response.has_focus() {
         painter.rect_stroke(
             rect.expand(3.0),
-            14.0,
+            13.0,
             Stroke::new(2.0_f32, p.accent),
             StrokeKind::Inside,
         );
@@ -573,9 +572,9 @@ pub fn segmented<T: Copy + PartialEq>(
     // row lays its controls out from the right.
     let total = galleys.iter().map(|g| g.size().x + 20.0).sum::<f32>()
         + 2.0 * options.len().saturating_sub(1) as f32;
+    // A recessed track; the chosen option sits on it as a raised surface.
     let frame = egui::Frame::new()
-        .fill(faded(p.field, enabled))
-        .stroke(Stroke::new(1.0_f32, faded(p.rule_strong, enabled)))
+        .fill(faded(p.pressed, enabled))
         .corner_radius(8.0)
         .inner_margin(2.0);
     frame.show(ui, |ui| {
@@ -643,7 +642,7 @@ pub fn segmented<T: Copy + PartialEq>(
                             StrokeKind::Inside,
                         );
                     } else if response.hovered() && enabled {
-                        painter.rect_filled(rect, 6.0, p.hovered());
+                        painter.rect_filled(rect, 6.0, p.field);
                     }
                     let color = if selected { p.text } else { p.muted };
                     painter.galley(
@@ -709,14 +708,20 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
         return response;
     }
     let painter = ui.painter();
-    let (fill, stroke, color) = if is_on {
-        (p.tint, Stroke::NONE, p.accent)
+    let (fill, stroke, color, count_color) = if is_on {
+        (p.tint, Stroke::NONE, p.accent, p.accent)
     } else if response.hovered() && enabled {
-        (p.hovered(), Stroke::new(1.0_f32, p.rule_strong), p.text)
+        (
+            p.hovered(),
+            Stroke::new(1.0_f32, p.rule_strong),
+            p.text,
+            p.muted,
+        )
     } else {
         (
             Color32::TRANSPARENT,
             Stroke::new(1.0_f32, p.rule_strong),
+            p.text,
             p.muted,
         )
     };
@@ -726,7 +731,7 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
     painter.galley(pos2(x, y), galley.clone(), faded(color, enabled));
     x += galley.size().x + 6.0;
     if let Some(count) = count_galley {
-        painter.galley(pos2(x, y), count, faded(color, enabled));
+        painter.galley(pos2(x, y), count, faded(count_color, enabled));
     }
     if response.has_focus() {
         painter.rect_stroke(
@@ -827,13 +832,13 @@ pub fn search_field(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ButtonKind {
-    /// Green on dark, ink on light: one per view.
+    /// Ink on light, near-white on dark: one per view.
     Primary,
     /// Field-coloured with a rule.
     Secondary,
     /// Bare text until hovered.
     Ghost,
-    /// Red: only inside a confirmation.
+    /// Deep red with white text: only inside a confirmation.
     Destructive,
 }
 
@@ -943,9 +948,9 @@ impl egui::Widget for Button {
         let (fill, stroke, color) = match self.kind {
             ButtonKind::Primary => (
                 if pressed {
-                    p.primary_fill.lerp_to_gamma(p.text, 0.18)
+                    p.primary_fill.lerp_to_gamma(p.bg, 0.22)
                 } else if hovered {
-                    p.primary_fill.lerp_to_gamma(p.text, 0.09)
+                    p.primary_fill.lerp_to_gamma(p.bg, 0.12)
                 } else {
                     p.primary_fill
                 },
@@ -975,13 +980,15 @@ impl egui::Widget for Button {
                 p.text,
             ),
             ButtonKind::Destructive => (
-                if pressed || hovered {
-                    p.error.lerp_to_gamma(p.text, 0.12)
+                if pressed {
+                    p.danger.lerp_to_gamma(Color32::BLACK, 0.18)
+                } else if hovered {
+                    p.danger.lerp_to_gamma(Color32::BLACK, 0.1)
                 } else {
-                    p.error
+                    p.danger
                 },
                 Stroke::NONE,
-                p.bg,
+                p.danger_text,
             ),
         };
         let painter = ui.painter();
@@ -1102,11 +1109,11 @@ pub fn tag(ui: &mut Ui, tone: Tone, text: &str) -> Response {
     let (fill, color) = match tone {
         Tone::Warn => (p.warn_tint, p.warn),
         Tone::Error => (p.error_tint, p.error),
-        Tone::Info | Tone::Neutral => (p.pressed, p.muted),
+        Tone::Info | Tone::Neutral => (p.field, p.muted),
     };
     let galley = ui.painter().layout_no_wrap(
         text.to_uppercase(),
-        FontId::new(10.5, theme::bold()),
+        FontId::new(10.5, theme::semibold()),
         Color32::PLACEHOLDER,
     );
     let size = vec2(galley.size().x + 2.0 * TAG_PAD, 16.0);
@@ -1114,7 +1121,7 @@ pub fn tag(ui: &mut Ui, tone: Tone, text: &str) -> Response {
     response.widget_info(|| WidgetInfo::labeled(Role::Label, true, text));
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        painter.rect_filled(rect, 4.0, fill);
+        painter.rect_filled(rect, 5.0, fill);
         painter.galley(rect.center() - galley.size() / 2.0, galley, color);
     }
     response
@@ -1259,19 +1266,20 @@ pub fn legend(ui: &mut Ui, color: Color32, text: &str) -> Response {
 }
 
 /// A banner or notice is padded as a row is, so its text lines up with the
-/// rows above and below it.
+/// rows above and below it. Its 1 px hairline is drawn outside the margin,
+/// so the margin is a pixel less: 16 x 12 from the outer edge, as in a group.
 fn row_margin() -> egui::Margin {
-    egui::Margin::symmetric(ROW_PADDING.x as i8, ROW_PADDING.y as i8)
+    egui::Margin::symmetric(ROW_PADDING.x as i8 - 1, ROW_PADDING.y as i8 - 1)
 }
 
-/// A banner's fill, and its mark and the mark's colour. Only a warning or a
-/// failure has a mark, so the tone isn't carried by colour alone; an info
-/// banner's text says it all.
-fn tone_look(p: &Palette, tone: Tone) -> (Color32, Option<(Icon, Color32)>) {
+/// A banner's fill and hairline, and its mark and the mark's colour. Only a
+/// warning or a failure has a mark, so the tone isn't carried by colour
+/// alone; an info banner's text says it all, on a plain surface.
+fn tone_look(p: &Palette, tone: Tone) -> (Color32, Color32, Option<(Icon, Color32)>) {
     match tone {
-        Tone::Warn => (p.warn_tint, Some((Icon::Warning, p.warn))),
-        Tone::Error => (p.error_tint, Some((Icon::Error, p.error))),
-        Tone::Info | Tone::Neutral => (p.field, None),
+        Tone::Warn => (p.warn_tint, p.warn_rule, Some((Icon::Warning, p.warn))),
+        Tone::Error => (p.error_tint, p.error_rule, Some((Icon::Error, p.error))),
+        Tone::Info | Tone::Neutral => (p.surface, p.rule, None),
     }
 }
 
@@ -1279,9 +1287,10 @@ fn tone_look(p: &Palette, tone: Tone) -> (Color32, Option<(Icon, Color32)>) {
 /// failure, its mark; text that wraps and whatever `actions` adds at the
 /// right. The text is read out when it appears.
 pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut Ui) -> R) -> R {
-    let (fill, mark) = tone_look(palette(ui), tone);
+    let (fill, rule, mark) = tone_look(palette(ui), tone);
     egui::Frame::new()
         .fill(fill)
+        .stroke(Stroke::new(1.0_f32, rule))
         .corner_radius(GROUP_RADIUS)
         .inner_margin(row_margin())
         .show(ui, |ui| {
@@ -1310,9 +1319,10 @@ pub fn banner<R>(ui: &mut Ui, tone: Tone, text: &str, actions: impl FnOnce(&mut 
 /// A notice that just appeared, read out at once: a banner with a Dismiss
 /// button. True when dismissed.
 pub fn notice(ui: &mut Ui, tone: Tone, text: &str) -> bool {
-    let (fill, mark) = tone_look(palette(ui), tone);
+    let (fill, rule, mark) = tone_look(palette(ui), tone);
     egui::Frame::new()
         .fill(fill)
+        .stroke(Stroke::new(1.0_f32, rule))
         .corner_radius(GROUP_RADIUS)
         .inner_margin(row_margin())
         .show(ui, |ui| {
@@ -1356,12 +1366,13 @@ pub fn nav_item(
     if !ui.is_rect_visible(rect) {
         return response;
     }
-    let (fill, color, family) = if selected {
-        (p.tint, p.accent, theme::semibold())
+    // Selected: a tint with the text in ink and only the icon green.
+    let (fill, color, icon_color, family) = if selected {
+        (p.tint, p.text, p.accent, theme::semibold())
     } else if response.hovered() {
-        (p.field, p.text, theme::medium())
+        (p.field, p.text, p.text, theme::medium())
     } else {
-        (Color32::TRANSPARENT, p.muted, theme::medium())
+        (Color32::TRANSPARENT, p.muted, p.muted, theme::medium())
     };
     let painter = ui.painter();
     painter.rect_filled(rect, 8.0, fill);
@@ -1372,14 +1383,14 @@ pub fn nav_item(
             vec2(ICON, ICON),
         ),
         icon,
-        color,
+        icon_color,
     );
     // On one line, cut short before the badge.
     let badge_w = badge.map_or(0.0, |badge| {
         painter
             .layout_no_wrap(
                 badge.to_uppercase(),
-                FontId::new(10.5, theme::bold()),
+                FontId::new(10.5, theme::semibold()),
                 Color32::PLACEHOLDER,
             )
             .size()
