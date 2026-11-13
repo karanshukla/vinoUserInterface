@@ -16,6 +16,7 @@
 //!   accent that says which format it is.
 //! - [`a11y`]: names, roles and headings for screen readers, which egui's
 //!   painted widgets don't give by themselves.
+//! - [`input`]: touchpad scrolling at the pace of the desktop's own apps.
 //! - [`about`]: the About page each window ends with, linking to
 //!   vinopilot.ca and the other apps, and with an [`update::Updater`], a row
 //!   that checks for a newer release and installs it.
@@ -47,6 +48,8 @@ pub mod about;
 pub mod file_tile;
 #[cfg(feature = "egui")]
 pub mod icons;
+#[cfg(feature = "egui")]
+pub mod input;
 #[cfg(feature = "egui")]
 pub mod logo;
 #[cfg(feature = "egui")]
