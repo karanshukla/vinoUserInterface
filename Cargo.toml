@@ -41,3 +41,7 @@ required-features = ["egui"]
 [[example]]
 name = "gallery"
 required-features = ["egui"]
+
+[[test]]
+name = "window"
+required-features = ["egui"]
