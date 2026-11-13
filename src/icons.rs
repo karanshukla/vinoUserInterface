@@ -191,11 +191,17 @@ pub fn icon(ui: &mut Ui, icon: Icon, size: f32, color: Color32) -> Response {
 
 /// The icon painted to fill `rect`.
 pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
+    paint_path(painter, rect, icon.path(), 1.8 * icon.stroke_scale(), color);
+}
+
+/// Any path on the icons' 24-unit grid, `width` units wide: for shapes that
+/// aren't icons of their own, like the window buttons.
+pub(crate) fn paint_path(painter: &Painter, rect: Rect, path: &str, width: f32, color: Color32) {
     let k = rect.width().min(rect.height()) / 24.0;
     let origin = rect.center() - vec2(12.0, 12.0) * k;
-    let width = 1.8 * k * icon.stroke_scale();
+    let width = width * k;
     let stroke = Stroke::new(width, color);
-    for sub in parse(icon.path()) {
+    for sub in parse(path) {
         let points: Vec<Pos2> = sub
             .points
             .iter()

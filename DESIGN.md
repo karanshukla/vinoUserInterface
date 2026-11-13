@@ -288,6 +288,26 @@ panel's edge after them. A narrow window's `header_frame` takes the same
 `inner_margin` numbers the page uses: the hairline under it is drawn outside
 the margin, not out of it.
 
+### The title bar
+
+A window can draw its own window buttons instead of the desktop's title bar
+(`window`), so they sit in the app's colours rather than a strip above it.
+Open the window with `window::viewport(builder, window::app_title_bar())`.
+Wide, the page title moves up out of the scroll area into a bar beside the
+sidebar, with `window::controls` at its right end; narrow, the controls go at
+the end of the header's first row. `window::drag` makes the bar, the header
+and the sidebar's brand the handle: press and drag moves the window, a double
+click maximises it. Call it before drawing into that area, so the tabs and
+buttons there keep their clicks. `window::edges` goes last in the frame: the
+resize edges and the hairline round the window, which the desktop draws for
+its own decorations only.
+
+`app_title_bar` is off on tiling compositors (sway, i3, Hyprland, niri,
+river, qtile), whose windows have no title bars, and `VINO_UI_TITLE_BAR=app`
+or `system` overrides it. What the desktop's bar does and this one can't:
+the window menu (right click or Alt+F3; egui can't open it), the desktop's
+button layout setting and its shadow.
+
 ## Patterns
 
 - **Save on change.** A switch takes effect when flipped, a field when it

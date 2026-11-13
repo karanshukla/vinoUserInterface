@@ -9,7 +9,7 @@ use vino_user_interface::egui::{RichText, Ui};
 use vino_user_interface::widgets::{self, Edge};
 use vino_user_interface::{
     Button, ButtonKind, ChipKind, Column, Format, Icon, Row, Tone, a11y, file_tile, icons, logo,
-    theme,
+    theme, window,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -61,6 +61,8 @@ pub struct Gallery {
     model: &'static str,
     only_images: bool,
     only_documents: bool,
+    /// The window buttons are the app's, in its header, not the desktop's.
+    pub app_title_bar: bool,
 }
 
 impl Default for Gallery {
@@ -77,6 +79,7 @@ impl Default for Gallery {
             model: "SigLIP 2, base",
             only_images: true,
             only_documents: false,
+            app_title_bar: false,
         }
     }
 }
@@ -104,7 +107,29 @@ impl Gallery {
                 .frame(widgets::sidebar_frame(p))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
-                    widgets::sidebar_brand(ui, Some(logo::search), "vino gallery", "Settings");
+                    let brand = ui
+                        .scope(|ui| {
+                            widgets::sidebar_brand(
+                                ui,
+                                Some(logo::search),
+                                "vino gallery",
+                                "Settings",
+                            );
+                        })
+                        .response
+                        .rect;
+                    if self.app_title_bar {
+                        // After the brand, so its name drags the window rather than selecting.
+                        let clip = ui.clip_rect();
+                        window::drag(
+                            ui,
+                            egui::Rect::from_x_y_ranges(
+                                clip.x_range(),
+                                clip.top()..=brand.bottom(),
+                            ),
+                            "brand",
+                        );
+                    }
                     ui.add_space(14.0);
                     a11y::tab_list(ui, "Pages");
                     for page in Page::ALL {
@@ -137,14 +162,23 @@ impl Gallery {
                     bottom: 0,
                 }))
                 .show(ui, |ui| {
+                    if self.app_title_bar {
+                        window::drag(ui, ui.clip_rect(), "header");
+                    }
                     ui.horizontal(|ui| {
                         logo::search(ui, 22.0);
-                        ui.label(
-                            RichText::new("vino gallery")
-                                .size(15.0)
-                                .family(theme::bold())
-                                .color(header.text),
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new("vino gallery")
+                                    .size(15.0)
+                                    .family(theme::bold())
+                                    .color(header.text),
+                            )
+                            .selectable(false),
                         );
+                        if self.app_title_bar {
+                            window::controls(ui);
+                        }
                     });
                     // Wrapped: at the desktop's largest text the tabs don't fit on one line.
                     ui.horizontal_wrapped(|ui| {
@@ -161,6 +195,31 @@ impl Gallery {
                 });
         }
 
+        // With the app's title bar, a wide window's page title moves up out of
+        // the scroll area into a bar of its own, with the window buttons at
+        // its end: that bar is what the window is dragged by.
+        let bar = wide && self.app_title_bar;
+        if bar {
+            egui::Panel::top("window-bar")
+                .show_separator_line(false)
+                .frame(egui::Frame::NONE.fill(p.bg).inner_margin(egui::Margin {
+                    left: widgets::page_inset(window) as i8,
+                    // 15 above puts the row's centre on the sidebar logo's,
+                    // and as much beside keeps the close button square in its corner.
+                    right: 15,
+                    top: 15,
+                    bottom: 6,
+                }))
+                .show(ui, |ui| {
+                    window::drag(ui, ui.clip_rect(), "bar");
+                    ui.horizontal(|ui| {
+                        ui.style_mut().interaction.selectable_labels = false;
+                        self.page_title(ui);
+                        window::controls(ui);
+                    });
+                });
+        }
+
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::NONE
@@ -173,7 +232,14 @@ impl Gallery {
                             16
                         },
                         right: 0,
-                        top: if wide { 20 } else { 12 },
+                        // The same 15 from title to content as in the scroll area.
+                        top: if bar {
+                            2
+                        } else if wide {
+                            20
+                        } else {
+                            12
+                        },
                         bottom: 0,
                     }),
             )
@@ -185,13 +251,9 @@ impl Gallery {
                     widgets::WIDE_MAX
                 };
                 widgets::page_scroll(ui, self.page.title(), max, |ui| {
-                    ui.horizontal(|ui| {
-                        widgets::title(ui, self.page.title());
-                        if self.page == Page::Widgets {
-                            let tag = widgets::tag(ui, Tone::Neutral, "Beta");
-                            a11y::decorative(ui, tag.id);
-                        }
-                    });
+                    if !bar {
+                        ui.horizontal(|ui| self.page_title(ui));
+                    }
                     match self.page {
                         Page::General => self.general(ui),
                         Page::Models => self.models(ui),
@@ -200,6 +262,14 @@ impl Gallery {
                     }
                 });
             });
+    }
+
+    fn page_title(&self, ui: &mut Ui) {
+        widgets::title(ui, self.page.title());
+        if self.page == Page::Widgets {
+            let tag = widgets::tag(ui, Tone::Neutral, "Beta");
+            a11y::decorative(ui, tag.id);
+        }
     }
 
     fn general(&mut self, ui: &mut Ui) {
@@ -467,11 +537,15 @@ fn shortcuts(ui: &mut Ui) {
 
 #[allow(dead_code)]
 fn main() -> eframe::Result {
+    let app_title_bar = window::app_title_bar();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("vino gallery")
-            .with_inner_size([960.0, 680.0])
-            .with_min_inner_size([340.0, 320.0]),
+        viewport: window::viewport(
+            egui::ViewportBuilder::default()
+                .with_title("vino gallery")
+                .with_inner_size([960.0, 680.0])
+                .with_min_inner_size([340.0, 320.0]),
+            app_title_bar,
+        ),
         ..Default::default()
     };
     eframe::run_native(
@@ -479,7 +553,9 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             theme::install(&cc.egui_ctx);
-            Ok(Box::new(App::default()))
+            let mut app = App::default();
+            app.gallery.app_title_bar = app_title_bar;
+            Ok(Box::new(app))
         }),
     )
 }
@@ -499,5 +575,8 @@ impl eframe::App for App {
         }
         self.focused = focused;
         self.gallery.ui(ui);
+        if self.gallery.app_title_bar {
+            window::edges(ui);
+        }
     }
 }

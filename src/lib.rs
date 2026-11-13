@@ -20,6 +20,10 @@
 //!   vinopilot.ca and the other apps, and with an [`update::Updater`], a row
 //!   that checks for a newer release and installs it.
 //!
+//! - [`window`]: the app's own title bar, for a window opened without the
+//!   desktop's: minimise, maximise and close, a header to drag the window by,
+//!   and edges to resize it from.
+//!
 //! Three modules need no egui, for the tray processes, which build with
 //! `default-features = false`:
 //!
@@ -53,6 +57,8 @@ pub mod logo;
 pub mod theme;
 #[cfg(feature = "egui")]
 pub mod widgets;
+#[cfg(feature = "egui")]
+pub mod window;
 
 pub use family::App;
 #[cfg(feature = "egui")]
