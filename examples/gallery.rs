@@ -204,8 +204,10 @@ impl Gallery {
                 .show_separator_line(false)
                 .frame(egui::Frame::NONE.fill(p.bg).inner_margin(egui::Margin {
                     left: widgets::page_inset(window) as i8,
-                    right: 10,
-                    top: 10,
+                    // 15 above puts the row's centre on the sidebar logo's,
+                    // and as much beside keeps the close button square in its corner.
+                    right: 15,
+                    top: 15,
                     bottom: 6,
                 }))
                 .show(ui, |ui| {
@@ -230,8 +232,9 @@ impl Gallery {
                             16
                         },
                         right: 0,
+                        // The same 15 from title to content as in the scroll area.
                         top: if bar {
-                            4
+                            2
                         } else if wide {
                             20
                         } else {
