@@ -10,7 +10,8 @@
 //!
 //! In an app: open the window with [`viewport`], drag the header with
 //! [`drag`] before drawing into it, put [`controls`] at its right end, and
-//! call [`edges`] last in the frame.
+//! call [`edges`] last in the frame. A wide window, whose pages have a
+//! sidebar and no header, gets [`bar`] above the page instead.
 
 use egui::{
     Align, Color32, CursorIcon, Id, Layout, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui,
@@ -132,6 +133,58 @@ pub fn controls(ui: &mut Ui) {
             }
         }
     });
+}
+
+/// How far the buttons sit from the window's top and right edges in [`bar`]:
+/// up in the corner, where a desktop's own are, and clear of the strip along
+/// each edge that resizes the window ([`edges`]).
+pub const BAR_GAP: f32 = 8.0;
+/// How much lower than the buttons the bar's title starts. With `BAR_GAP`
+/// it leaves the title's row centred on the sidebar logo's.
+const TITLE_DROP: f32 = 7.0;
+
+/// A wide window's bar, above the page and beside the sidebar: the page's
+/// `title` at `inset` from the left, [`controls`] in the top right corner,
+/// and `beside` to their left (a status chip, or nothing). All of it drags
+/// the window. A top panel of `root`: show it after the sidebar's panel and
+/// before the page's.
+pub fn bar(root: &mut Ui, inset: f32, title: impl FnOnce(&mut Ui), beside: impl FnOnce(&mut Ui)) {
+    let p = theme::palette(root.ctx());
+    egui::Panel::top("window-bar")
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE.fill(p.bg).inner_margin(egui::Margin {
+            left: inset as i8,
+            right: BAR_GAP as i8,
+            top: BAR_GAP as i8,
+            bottom: 6,
+        }))
+        .show(root, |ui| {
+            drag(ui, ui.clip_rect(), "bar");
+            ui.horizontal(|ui| {
+                ui.style_mut().interaction.selectable_labels = false;
+                ui.vertical(|ui| {
+                    ui.add_space(TITLE_DROP);
+                    ui.horizontal(title);
+                });
+                ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                    // One row as high as a button, so what is beside the
+                    // buttons is centred on them.
+                    ui.allocate_ui_with_layout(
+                        vec2(ui.available_width(), BUTTON),
+                        Layout::right_to_left(Align::Center),
+                        |ui| {
+                            ui.allocate_ui_with_layout(
+                                vec2(controls_width(), BUTTON),
+                                Layout::right_to_left(Align::Center),
+                                controls,
+                            );
+                            ui.add_space(4.0);
+                            beside(ui);
+                        },
+                    );
+                });
+            });
+        });
 }
 
 /// The width [`controls`] takes, for laying out what sits beside them.

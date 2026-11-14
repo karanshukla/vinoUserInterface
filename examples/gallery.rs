@@ -200,24 +200,12 @@ impl Gallery {
         // its end: that bar is what the window is dragged by.
         let bar = wide && self.app_title_bar;
         if bar {
-            egui::Panel::top("window-bar")
-                .show_separator_line(false)
-                .frame(egui::Frame::NONE.fill(p.bg).inner_margin(egui::Margin {
-                    left: widgets::page_inset(window) as i8,
-                    // 15 above puts the row's centre on the sidebar logo's,
-                    // and as much beside keeps the close button square in its corner.
-                    right: 15,
-                    top: 15,
-                    bottom: 6,
-                }))
-                .show(ui, |ui| {
-                    window::drag(ui, ui.clip_rect(), "bar");
-                    ui.horizontal(|ui| {
-                        ui.style_mut().interaction.selectable_labels = false;
-                        self.page_title(ui);
-                        window::controls(ui);
-                    });
-                });
+            window::bar(
+                ui,
+                widgets::page_inset(window),
+                |ui| self.page_title(ui),
+                |_| {},
+            );
         }
 
         egui::CentralPanel::default()
