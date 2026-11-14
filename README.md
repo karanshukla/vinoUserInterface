@@ -105,7 +105,7 @@ cargo run --example gallery
 | `theme` | the tokens for dark and light, fonts, egui's visuals and spacing, and what the desktop asks for: light or dark (the Settings portal), text size, reduced motion, KDE's header colours |
 | `widgets` | group + row, switch, segmented control, the four button kinds, status text, filter chip, tag, key caps, progress and share bars, banner, notice, nav item, underline tab, selection ring and tint, a 10 fps spinner for real waits, the page scroll area, and the layout constants |
 | `icons` | a 16 px stroke icon set painted from SVG path data (no icon font), `Icon::ALL` for the lot |
-| `logo` | the three app logos, painted at any size |
+| `logo` | the app logos (Search, Whisper, Speak, AuthFace), painted at any size |
 | `file_tile` | a file's tile for a list, drawn like the logos, with a mark and an accent per format (`Format::from_extension`) |
 | `a11y` | headings, tabs, list boxes, live regions and naming for screen readers |
 

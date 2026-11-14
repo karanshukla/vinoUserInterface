@@ -11,7 +11,8 @@
 //!   banners, nav items and tabs, and a spinner for real waits that stands
 //!   still when motion is reduced.
 //! - [`icons`]: a 16 px stroke icon set painted from SVG paths.
-//! - [`logo`]: the three app logos, painted so they stay sharp at any scale.
+//! - [`logo`]: the app logos (Search, Whisper, Speak, AuthFace), painted so
+//!   they stay sharp at any scale.
 //! - [`file_tile`]: a file's tile for a list, drawn like the logos, with an
 //!   accent that says which format it is.
 //! - [`a11y`]: names, roles and headings for screen readers, which egui's
