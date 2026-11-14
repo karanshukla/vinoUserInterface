@@ -142,34 +142,28 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
             }
         }
         Logo::AuthFace => {
-            // A viewfinder's four corners round a face: eyes, cheeks and a smile.
-            let bar = |x: f32, y: f32, w: f32, h: f32, colour: Color32| {
+            // A viewfinder's four corners round a face: two eyes and a smile.
+            for (x, y, w, h) in [
+                (13.0, 13.0, 13.0, 5.0),
+                (13.0, 13.0, 5.0, 13.0),
+                (38.0, 13.0, 13.0, 5.0),
+                (46.0, 13.0, 5.0, 13.0),
+                (13.0, 46.0, 13.0, 5.0),
+                (13.0, 38.0, 5.0, 13.0),
+                (38.0, 46.0, 13.0, 5.0),
+                (46.0, 38.0, 5.0, 13.0),
+            ] {
                 painter.rect_filled(
                     Rect::from_min_max(at(x, y), at(x + w, y + h)),
-                    w.min(h) / 2.0 * k,
-                    colour,
+                    2.5 * k,
+                    WHITE,
                 );
-            };
-            for (x, y, w, h) in [
-                (12.0, 12.0, 12.0, 4.0),
-                (12.0, 12.0, 4.0, 12.0),
-                (40.0, 12.0, 12.0, 4.0),
-                (48.0, 12.0, 4.0, 12.0),
-                (12.0, 48.0, 12.0, 4.0),
-                (12.0, 40.0, 4.0, 12.0),
-                (40.0, 48.0, 12.0, 4.0),
-                (48.0, 40.0, 4.0, 12.0),
-            ] {
-                bar(x, y, w, h, WHITE);
             }
-            for (x, y, w, h) in [
-                (23.0, 22.0, 5.0, 9.0),
-                (36.0, 22.0, 5.0, 9.0),
-                (22.0, 37.0, 5.0, 8.0),
-                (25.0, 41.0, 14.0, 5.0),
-                (37.0, 37.0, 5.0, 8.0),
-            ] {
-                bar(x, y, w, h, GREEN);
+            painter.circle_filled(at(25.5, 25.5), 3.5 * k, GREEN);
+            painter.circle_filled(at(38.5, 25.5), 3.5 * k, GREEN);
+            for sub in icons::parse("M23.5 35.5Q32 45.5 40.5 35.5") {
+                let points: Vec<Pos2> = sub.points.iter().map(|p| at(p.x, p.y)).collect();
+                capped(painter, points, Stroke::new(5.0 * k, GREEN));
             }
         }
     }
