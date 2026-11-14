@@ -12,6 +12,9 @@ use crate::{a11y, icons};
 pub(crate) const INK: Color32 = Color32::from_rgb(0x0e, 0x0e, 0x10);
 pub(crate) const WHITE: Color32 = Color32::from_rgb(0xfa, 0xfa, 0xfa);
 pub(crate) const GREEN: Color32 = Color32::from_rgb(0x56, 0xcc, 0x78);
+/// What stands behind a mark: #a0a4ac at 0.6 over the ink, the least that is
+/// 3:1 against it, and opaque so overlapping pills don't show through.
+const FRAME: Color32 = Color32::from_rgb(0x66, 0x68, 0x6e);
 
 /// The speech bubble, on the logo's 60-unit grid.
 pub const WHISPER_BUBBLE: &str =
@@ -142,28 +145,33 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
             }
         }
         Logo::AuthFace => {
-            // A viewfinder's four corners round a face: two eyes and a smile.
-            for (x, y, w, h) in [
-                (13.0, 13.0, 13.0, 5.0),
-                (13.0, 13.0, 5.0, 13.0),
-                (38.0, 13.0, 13.0, 5.0),
-                (46.0, 13.0, 5.0, 13.0),
-                (13.0, 46.0, 13.0, 5.0),
-                (13.0, 38.0, 5.0, 13.0),
-                (38.0, 46.0, 13.0, 5.0),
-                (46.0, 38.0, 5.0, 13.0),
-            ] {
+            // A viewfinder's four corners, in the grey the other logos keep
+            // for what stands behind the mark, round a face: two white eyes
+            // and a green smile, all as thick as the family's pills.
+            let pill = |x: f32, y: f32, w: f32, h: f32, colour: Color32| {
                 painter.rect_filled(
                     Rect::from_min_max(at(x, y), at(x + w, y + h)),
-                    2.5 * k,
-                    WHITE,
+                    3.0 * k,
+                    colour,
                 );
+            };
+            for (x, y, w, h) in [
+                (12.0, 12.0, 15.0, 6.0),
+                (12.0, 12.0, 6.0, 15.0),
+                (37.0, 12.0, 15.0, 6.0),
+                (46.0, 12.0, 6.0, 15.0),
+                (12.0, 46.0, 15.0, 6.0),
+                (12.0, 37.0, 6.0, 15.0),
+                (37.0, 46.0, 15.0, 6.0),
+                (46.0, 37.0, 6.0, 15.0),
+            ] {
+                pill(x, y, w, h, FRAME);
             }
-            painter.circle_filled(at(25.5, 25.5), 3.5 * k, GREEN);
-            painter.circle_filled(at(38.5, 25.5), 3.5 * k, GREEN);
-            for sub in icons::parse("M23.5 35.5Q32 45.5 40.5 35.5") {
+            pill(22.0, 22.0, 6.0, 9.0, WHITE);
+            pill(36.0, 22.0, 6.0, 9.0, WHITE);
+            for sub in icons::parse("M23 37Q32 46 41 37") {
                 let points: Vec<Pos2> = sub.points.iter().map(|p| at(p.x, p.y)).collect();
-                capped(painter, points, Stroke::new(5.0 * k, GREEN));
+                capped(painter, points, Stroke::new(6.0 * k, GREEN));
             }
         }
     }
@@ -172,4 +180,16 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
 /// A square of `size`.
 pub fn square(size: f32) -> Vec2 {
     vec2(size, size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::tests::contrast;
+
+    #[test]
+    fn the_frame_has_enough_contrast_on_the_ink() {
+        let ratio = contrast(FRAME, INK);
+        assert!(ratio >= 3.0, "the frame is {ratio:.2}:1 on the ink");
+    }
 }
