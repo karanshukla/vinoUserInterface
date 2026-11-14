@@ -352,29 +352,67 @@ pub fn install(ctx: &egui::Context) {
 // What the desktop asks for.
 
 /// One value from the portal's Settings, as busctl prints it ("v u 1").
+/// Through gdbus where there is no busctl, as in a Flatpak's runtime.
 fn read_setting(namespace: &str, key: &str) -> Option<String> {
-    let output = std::process::Command::new("busctl")
-        // A portal that is still starting would hold the frame for busctl's
-        // default 25 s.
-        .args([
-            "--user",
-            "--timeout=1",
-            "call",
-            "org.freedesktop.portal.Desktop",
-            "/org/freedesktop/portal/desktop",
-            "org.freedesktop.portal.Settings",
-            "ReadOne",
-            "ss",
-            namespace,
-            key,
-        ])
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+    const PORTAL: &str = "org.freedesktop.portal.Desktop";
+    const PATH: &str = "/org/freedesktop/portal/desktop";
+    let run = |program: &str, args: &[&str]| {
+        let output = std::process::Command::new(program)
+            .args(args)
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        // None for no such program; an empty answer for a refusal.
+        Some(if output.status.success() {
+            String::from_utf8_lossy(&output.stdout).into_owned()
+        } else {
+            String::new()
+        })
+    };
+    // A portal that is still starting would hold the frame for either
+    // tool's default 25 s.
+    let busctl = [
+        "--user",
+        "--timeout=1",
+        "call",
+        PORTAL,
+        PATH,
+        "org.freedesktop.portal.Settings",
+        "ReadOne",
+        "ss",
+        namespace,
+        key,
+    ];
+    let reply = match run("busctl", &busctl) {
+        Some(reply) => reply,
+        None => {
+            let gdbus = [
+                "call",
+                "--session",
+                "--timeout=1",
+                "--dest",
+                PORTAL,
+                "--object-path",
+                PATH,
+                "--method",
+                "org.freedesktop.portal.Settings.ReadOne",
+                namespace,
+                key,
+            ];
+            from_gdbus(&run("gdbus", &gdbus)?)
+        }
+    };
+    (!reply.trim().is_empty()).then_some(reply)
+}
+
+// gdbus prints "(<uint32 1>,)" where busctl prints "v u 1": the value is
+// the last word of both once the brackets are off.
+fn from_gdbus(reply: &str) -> String {
+    reply
+        .trim()
+        .trim_start_matches("(<")
+        .trim_end_matches(">,)")
+        .to_owned()
 }
 
 /// Light or dark. winit on Wayland only knows the theme of decorations it
@@ -447,8 +485,7 @@ pub const TEXT_SCALE: std::ops::RangeInclusive<f32> = 1.0..=3.0;
 /// gsettings when no portal runs.
 pub fn desktop_text_scale() -> Option<f32> {
     let factor = if on_kde() {
-        let config = config_dir()?;
-        let read = |name: &str| std::fs::read_to_string(config.join(name)).unwrap_or_default();
+        let read = |name: &str| read_kde_config(name).unwrap_or_default();
         kde_text_scale(&read("kcmfontsrc"), &read("kdeglobals"))
     } else {
         gnome_text_scale()
@@ -527,13 +564,37 @@ fn on_kde() -> bool {
         .any(|name| name.eq_ignore_ascii_case("KDE"))
 }
 
-fn config_dir() -> Option<std::path::PathBuf> {
-    std::env::var_os("XDG_CONFIG_HOME")
+/// Plasma's `name` (`kdeglobals`, `kcmfontsrc`), from the first folder
+/// that has it.
+fn read_kde_config(name: &str) -> Option<String> {
+    let sandboxed = std::path::Path::new("/.flatpak-info").exists();
+    config_dirs(
+        sandboxed,
+        std::env::var_os("XDG_CONFIG_HOME"),
+        std::env::var_os("HOME"),
+    )
+    .iter()
+    .find_map(|dir| std::fs::read_to_string(dir.join(name)).ok())
+}
+
+/// XDG_CONFIG_HOME, else the home's `.config`. In a Flatpak the home's
+/// first: XDG_CONFIG_HOME there is the app's own folder, which Plasma never
+/// writes to. The sandbox sees the home's only when it is let
+/// (`--filesystem=xdg-config/kdeglobals:ro`, or the home).
+fn config_dirs(
+    sandboxed: bool,
+    xdg_config: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Vec<std::path::PathBuf> {
+    let xdg = xdg_config
         .filter(|dir| !dir.is_empty())
-        .map(std::path::PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| std::path::Path::new(&home).join(".config"))
-        })
+        .map(std::path::PathBuf::from);
+    let home = home.map(|home| std::path::Path::new(&home).join(".config"));
+    match (sandboxed, xdg, home) {
+        (true, xdg, home) => home.into_iter().chain(xdg).collect(),
+        (false, Some(xdg), _) => vec![xdg],
+        (false, None, home) => home.into_iter().collect(),
+    }
 }
 
 /// The colours of a window's top strip.
@@ -557,7 +618,7 @@ pub fn kde_header() -> Option<KdeHeader> {
     if !on_kde() {
         return None;
     }
-    parse_kde_header(&std::fs::read_to_string(config_dir()?.join("kdeglobals")).ok()?)
+    parse_kde_header(&read_kde_config("kdeglobals")?)
 }
 
 fn parse_kde_header(kdeglobals: &str) -> Option<KdeHeader> {
@@ -627,6 +688,36 @@ pub(crate) mod tests {
         assert_eq!(parse_color_scheme("v u 0\n"), Some(Theme::Light));
         assert_eq!(parse_color_scheme(""), None);
         assert_eq!(parse_color_scheme("garbage"), None);
+    }
+
+    #[test]
+    fn gdbus_answers_read_as_busctls_do() {
+        assert_eq!(
+            parse_color_scheme(&from_gdbus("(<uint32 1>,)\n")),
+            Some(Theme::Dark)
+        );
+        assert_eq!(
+            parse_color_scheme(&from_gdbus("(<uint32 2>,)\n")),
+            Some(Theme::Light)
+        );
+        assert_eq!(parse_scale(&from_gdbus("(<1.25>,)\n")), Some(1.25));
+        assert!(animations_off(&from_gdbus("(<false>,)\n")));
+        assert!(!animations_off(&from_gdbus("(<true>,)\n")));
+        assert!(animations_off(&from_gdbus("(<0.0>,)\n")));
+        assert_eq!(from_gdbus(""), "");
+    }
+
+    #[test]
+    fn plasmas_config_is_the_homes_first_in_a_flatpak() {
+        let dirs = |sandboxed, xdg: Option<&str>| {
+            config_dirs(sandboxed, xdg.map(Into::into), Some("/home/u".into()))
+        };
+        let path = std::path::PathBuf::from;
+        assert_eq!(dirs(false, Some("/c")), [path("/c")]);
+        assert_eq!(dirs(false, None), [path("/home/u/.config")]);
+        assert_eq!(dirs(false, Some("")), [path("/home/u/.config")]);
+        let own = "/home/u/.var/app/a.b/config";
+        assert_eq!(dirs(true, Some(own)), [path("/home/u/.config"), path(own)]);
     }
 
     #[test]
