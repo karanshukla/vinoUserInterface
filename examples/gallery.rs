@@ -489,6 +489,7 @@ fn notices_and_art(ui: &mut Ui) {
                 logo::search(ui, 40.0);
                 logo::whisper(ui, 40.0);
                 logo::speak(ui, 40.0);
+                logo::authface(ui, 40.0);
             });
         });
         // At 30, the size the lists draw them.

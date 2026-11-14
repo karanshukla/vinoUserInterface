@@ -1,6 +1,7 @@
-//! The three app logos, painted at any size without an SVG renderer: an ink
-//! tile with a faint inner edge, a white mark and a green accent. vinoSearch's
-//! is `data/dev.vinosearch.svg`, vinoSpeak's `docs/assets/vinospeak.svg`;
+//! The app logos, painted at any size without an SVG renderer: an ink tile
+//! with a faint inner edge, a white mark and a green accent. vinoSearch's
+//! is `data/dev.vinosearch.svg`, vinoSpeak's `docs/assets/vinospeak.svg`,
+//! vinoAuthFace's `crates/face-auth-tray/data/vinoauthface.svg`;
 //! vinoWhisper's is the speech bubble with green bars proposed on the vino UI
 //! Foundations board (vinoWhisper#128).
 
@@ -21,6 +22,7 @@ pub enum Logo {
     Search,
     Whisper,
     Speak,
+    AuthFace,
 }
 
 /// The logo in a `size` square, hidden from screen readers: the app's name
@@ -44,6 +46,10 @@ pub fn whisper(ui: &mut Ui, size: f32) -> Response {
 
 pub fn speak(ui: &mut Ui, size: f32) -> Response {
     logo(ui, Logo::Speak, size)
+}
+
+pub fn authface(ui: &mut Ui, size: f32) -> Response {
+    logo(ui, Logo::AuthFace, size)
 }
 
 /// The tile every logo and file tile sits on, and a mapping from the SVG's units: the tile
@@ -133,6 +139,37 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
                     let points: Vec<Pos2> = sub.points.iter().map(|p| at(p.x, p.y)).collect();
                     capped(painter, points, Stroke::new(4.0 * k, GREEN));
                 }
+            }
+        }
+        Logo::AuthFace => {
+            // A viewfinder's four corners round a face: eyes, cheeks and a smile.
+            let bar = |x: f32, y: f32, w: f32, h: f32, colour: Color32| {
+                painter.rect_filled(
+                    Rect::from_min_max(at(x, y), at(x + w, y + h)),
+                    w.min(h) / 2.0 * k,
+                    colour,
+                );
+            };
+            for (x, y, w, h) in [
+                (12.0, 12.0, 12.0, 4.0),
+                (12.0, 12.0, 4.0, 12.0),
+                (40.0, 12.0, 12.0, 4.0),
+                (48.0, 12.0, 4.0, 12.0),
+                (12.0, 48.0, 12.0, 4.0),
+                (12.0, 40.0, 4.0, 12.0),
+                (40.0, 48.0, 12.0, 4.0),
+                (48.0, 40.0, 4.0, 12.0),
+            ] {
+                bar(x, y, w, h, WHITE);
+            }
+            for (x, y, w, h) in [
+                (23.0, 22.0, 5.0, 9.0),
+                (36.0, 22.0, 5.0, 9.0),
+                (22.0, 37.0, 5.0, 8.0),
+                (25.0, 41.0, 14.0, 5.0),
+                (37.0, 37.0, 5.0, 8.0),
+            ] {
+                bar(x, y, w, h, GREEN);
             }
         }
     }

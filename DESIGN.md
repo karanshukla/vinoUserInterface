@@ -302,6 +302,13 @@ buttons there keep their clicks. `window::edges` goes last in the frame: the
 resize edges and the hairline round the window, which the desktop draws for
 its own decorations only.
 
+A wide window uses `window::bar` for that bar: the page's title, the
+buttons 8 from the top and right edges (`BAR_GAP`), and what sat beside the
+title next to them. The title is cut off before it reaches them. A window
+with a header at every width and no sidebar (a search or reading window)
+puts the buttons in the same corner with `window::corner`, which takes no
+room in the header and returns the width to keep clear at its right end.
+
 `app_title_bar` is off on tiling compositors (sway, i3, Hyprland, niri,
 river, qtile), whose windows have no title bars, and `VINO_UI_TITLE_BAR=app`
 or `system` overrides it. What the desktop's bar does and this one can't:

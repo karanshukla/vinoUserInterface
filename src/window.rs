@@ -11,7 +11,8 @@
 //! In an app: open the window with [`viewport`], drag the header with
 //! [`drag`] before drawing into it, put [`controls`] at its right end, and
 //! call [`edges`] last in the frame. A wide window, whose pages have a
-//! sidebar and no header, gets [`bar`] above the page instead.
+//! sidebar and no header, gets [`bar`] above the page instead. A window with
+//! a header at every width puts the buttons up in its corner with [`corner`].
 
 use egui::{
     Align, Color32, CursorIcon, Id, Layout, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui,
@@ -142,6 +143,8 @@ pub const BAR_GAP: f32 = 8.0;
 /// How much lower than the buttons the bar's title starts. With `BAR_GAP`
 /// it leaves the title's row centred on the sidebar logo's.
 const TITLE_DROP: f32 = 7.0;
+/// The least room between the bar's title and what is beside the buttons.
+const TITLE_GAP: f32 = 12.0;
 
 /// A wide window's bar, above the page and beside the sidebar: the page's
 /// `title` at `inset` from the left, [`controls`] in the top right corner,
@@ -160,31 +163,55 @@ pub fn bar(root: &mut Ui, inset: f32, title: impl FnOnce(&mut Ui), beside: impl 
         }))
         .show(root, |ui| {
             drag(ui, ui.clip_rect(), "bar");
-            ui.horizontal(|ui| {
-                ui.style_mut().interaction.selectable_labels = false;
-                ui.vertical(|ui| {
-                    ui.add_space(TITLE_DROP);
-                    ui.horizontal(title);
-                });
-                ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                    // One row as high as a button, so what is beside the
-                    // buttons is centred on them.
-                    ui.allocate_ui_with_layout(
-                        vec2(ui.available_width(), BUTTON),
-                        Layout::right_to_left(Align::Center),
-                        |ui| {
-                            ui.allocate_ui_with_layout(
-                                vec2(controls_width(), BUTTON),
-                                Layout::right_to_left(Align::Center),
-                                controls,
-                            );
-                            ui.add_space(4.0);
-                            beside(ui);
-                        },
-                    );
+            ui.style_mut().interaction.selectable_labels = false;
+            // The buttons and what is beside them first, from the right, so the
+            // title gets what is left and is cut off before it reaches them.
+            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                ui.allocate_ui_with_layout(
+                    vec2(controls_width(), BUTTON),
+                    Layout::right_to_left(Align::Center),
+                    controls,
+                );
+                ui.add_space(4.0);
+                // As high as a button, so what is beside them is centred on them.
+                ui.allocate_ui_with_layout(
+                    vec2(ui.available_width(), BUTTON),
+                    Layout::right_to_left(Align::Center),
+                    beside,
+                );
+                ui.add_space(TITLE_GAP);
+                ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                    let clip = ui.max_rect().intersect(ui.clip_rect());
+                    ui.set_clip_rect(clip);
+                    ui.vertical(|ui| {
+                        ui.add_space(TITLE_DROP);
+                        ui.horizontal(title);
+                    });
                 });
             });
         });
+}
+
+/// [`controls`] up in the window's top right corner, [`BAR_GAP`] from its
+/// top and right edges, for a window with a header at every width and no
+/// [`bar`]. They take no room in `ui`'s layout: keep the width this returns
+/// clear at the right end of the header's rows that reach the corner, measured
+/// from the window's right edge.
+pub fn corner(ui: &mut Ui) -> f32 {
+    let window = ui.ctx().content_rect();
+    let room = BAR_GAP + controls_width();
+    let rect = Rect::from_min_size(
+        pos2(window.right() - room, window.top() + BAR_GAP),
+        vec2(controls_width(), BUTTON),
+    );
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(Layout::right_to_left(Align::Center)),
+    );
+    child.set_clip_rect(rect.expand(4.0));
+    controls(&mut child);
+    room
 }
 
 /// The width [`controls`] takes, for laying out what sits beside them.

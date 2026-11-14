@@ -202,3 +202,70 @@ fn a_narrow_window_has_the_buttons_in_its_header() {
     h.run_steps(2);
     assert_eq!(h.state().gallery.page, Page::Shortcuts);
 }
+
+/// A window drawn with `bar` or `corner` alone, outside the gallery.
+fn plain(width: f32, add: impl FnMut(&mut egui::Ui) + 'static) -> Harness<'static> {
+    let mut add = add;
+    let mut styled = false;
+    let mut h = Harness::builder()
+        .with_size((width, 400.0))
+        .build_ui(move |ui| {
+            if !styled {
+                theme::apply(ui.ctx());
+                styled = true;
+            }
+            add(ui);
+        });
+    h.run_steps(3);
+    h
+}
+
+#[test]
+fn a_long_title_stops_short_of_the_buttons() {
+    let h = plain(360.0, |ui| {
+        window::bar(
+            ui,
+            20.0,
+            |ui| {
+                ui.label("vinoPilot 0.4.1 · update to 0.4.2, and a good deal more");
+            },
+            |ui| {
+                ui.label("Indexing");
+            },
+        );
+    });
+    // The buttons keep their place in the corner, inside the window, however
+    // long the title is; the title is cut off before them.
+    let close = h.get_by_label("Close").rect();
+    let window = h.ctx.content_rect();
+    assert!(
+        close.right() <= window.right() - window::BAR_GAP,
+        "{close:?}"
+    );
+    let minimise = h.get_by_label("Minimise").rect();
+    let beside = h.get_by_label("Indexing").rect();
+    assert!(beside.right() < minimise.left(), "{beside:?}");
+    let title = h.get_by_label_contains("vinoPilot 0.4.1").rect();
+    assert!(title.left() < beside.left(), "{title:?}");
+}
+
+#[test]
+fn corner_puts_the_buttons_in_the_window_corner() {
+    let room = std::rc::Rc::new(std::cell::Cell::new(0.0));
+    let kept = room.clone();
+    let h = plain(600.0, move |ui| {
+        egui::Panel::top("header").show(ui, |ui| {
+            kept.set(window::corner(ui));
+            ui.label("Header");
+        });
+    });
+    let close = h.get_by_label("Close").rect();
+    assert!(
+        (close.right() - (600.0 - window::BAR_GAP)).abs() < 0.5,
+        "{close:?}"
+    );
+    assert!((close.top() - window::BAR_GAP).abs() < 0.5, "{close:?}");
+    assert_eq!(room.get(), window::BAR_GAP + window::controls_width());
+    // Nothing else moved for them: the header's label is where it would be.
+    assert!(h.get_by_label("Header").rect().top() < 20.0);
+}
