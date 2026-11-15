@@ -24,7 +24,7 @@ say which; the fix is a release here, then a version bump in each app.
 |---|---|
 | Memory-safety bug in this crate | `#![forbid(unsafe_code)]`: there is no `unsafe` here, and the compiler refuses any. |
 | Odd or hostile desktop settings | Whatever busctl, gsettings or the KDE files say is parsed, never executed; anything that doesn't parse is ignored, and the text scale is clamped to a fixed range. A same-user attacker who can change `PATH` or `~/.config` already controls the app, so that isn't a boundary. |
-| Compromised or yanked dependency | One runtime dependency, egui. cargo-deny checks advisories, licences and sources for what ships (`deny.toml`, crates.io only, dev-dependencies excluded since a user never gets them). `Cargo.lock` is enforced in CI (`--locked`). |
+| Compromised or yanked dependency | Two runtime dependencies: egui, and svgtypes for the icons' path data. cargo-deny checks advisories, licences and sources for what ships (`deny.toml`, crates.io only, dev-dependencies excluded since a user never gets them). `Cargo.lock` is enforced in CI (`--locked`). |
 | Freshly compromised release pulled in | Dependabot waits 7 days before proposing an update (security fixes skip the wait), and nothing auto-merges. |
 | Compromised CI action | Every action is pinned to a commit SHA; workflows get a read-only token and don't keep checkout credentials. |
 | A release that isn't what's in the repo | Releases publish only from a `v*` tag, through crates.io trusted publishing: a short-lived token minted for that run, no stored secret. The `crates-io` environment accepts only `v*` tags, so a workflow edited on a branch can't publish. The workflow reruns every check and refuses a tag that doesn't match `Cargo.toml`'s version. |

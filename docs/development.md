@@ -78,9 +78,10 @@ The files under `widgets/` and `theme/` are private. `widgets::Button` and
 `theme::follow_desktop` are still the paths: each `mod.rs` re-exports what its
 files hold.
 
-One runtime dependency, egui, and that is deliberate
-([SECURITY.md](../SECURITY.md)). The JSON, version and INI reading here is a
-few lines each, written by hand so the trays link nothing for it.
+Two runtime dependencies, egui and svgtypes (the icons' path data), both
+behind the `egui` feature, and few on purpose ([SECURITY.md](../SECURITY.md)).
+The JSON, version and INI reading here is a few lines each, written by hand so
+the trays link nothing for it.
 
 ## The gate
 

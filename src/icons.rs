@@ -5,6 +5,8 @@
 
 use egui::{Color32, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2, pos2, vec2};
 
+use svgtypes::PathSegment;
+
 use crate::a11y;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -235,90 +237,17 @@ pub struct Subpath {
 
 /// SVG path data (M, L, H, V, C, Q, A, Z and their relative forms, with
 /// implicit repeats) as flattened subpaths. A dot drawn as a zero-length
-/// segment keeps its one point. What it can't read ends the path there: S and
-/// T, exponents, and arc flags written without a space after them ("0 01").
+/// segment keeps its one point. What isn't path data ends the path there,
+/// and so do S and T, which are read and not drawn.
 pub fn parse(path: &str) -> Vec<Subpath> {
-    let mut tokens = Tokens::new(path);
     let mut pen = Pen::default();
-    let mut command = 'M';
-    while !tokens.done() {
-        if let Some(named) = tokens.command() {
-            command = named;
-        }
-        match segment(command, &mut tokens, &mut pen) {
-            Some(repeat) => command = repeat,
-            None => break,
+    for segment in svgtypes::PathParser::from(path) {
+        let Ok(segment) = segment else { break };
+        if !pen.draw(segment) {
+            break;
         }
     }
     pen.finish()
-}
-
-/// Draws one `command` with the numbers that follow it. Some: the command
-/// further numbers repeat. None: the path ends here, short of numbers or at
-/// a letter that isn't a command.
-fn segment(command: char, tokens: &mut Tokens, pen: &mut Pen) -> Option<char> {
-    let relative = command.is_ascii_lowercase();
-    let line_to = if relative { 'l' } else { 'L' };
-    let from = pen.pos;
-    let at = |x: f32, y: f32| {
-        if relative {
-            from + vec2(x, y)
-        } else {
-            pos2(x, y)
-        }
-    };
-    match command.to_ascii_uppercase() {
-        'M' => {
-            let [x, y] = tokens.numbers()?;
-            pen.move_to(at(x, y));
-            // Further pairs are line-tos.
-            return Some(line_to);
-        }
-        'L' => {
-            let [x, y] = tokens.numbers()?;
-            pen.line_to(at(x, y));
-        }
-        'H' => {
-            let x = tokens.number()?;
-            pen.line_to(at(x, if relative { 0.0 } else { from.y }));
-        }
-        'V' => {
-            let y = tokens.number()?;
-            pen.line_to(at(if relative { 0.0 } else { from.x }, y));
-        }
-        'C' => {
-            let [x1, y1, x2, y2, x, y] = tokens.numbers()?;
-            let (c1, c2, end) = (at(x1, y1), at(x2, y2), at(x, y));
-            pen.curve_to(end, |t| cubic(from, c1, c2, end, t));
-        }
-        'Q' => {
-            let [x1, y1, x, y] = tokens.numbers()?;
-            let (c, end) = (at(x1, y1), at(x, y));
-            pen.curve_to(end, |t| quadratic(from, c, end, t));
-        }
-        'A' => {
-            let [rx, ry, rotation, large, sweep, x, y] = tokens.numbers()?;
-            let end = at(x, y);
-            arc(
-                &mut pen.current,
-                from,
-                rx,
-                ry,
-                rotation,
-                large != 0.0,
-                sweep != 0.0,
-                end,
-            );
-            pen.pos = end;
-        }
-        'Z' => {
-            // A Z followed by numbers draws on from the start point.
-            pen.close(tokens.at_number());
-            return Some(line_to);
-        }
-        _ => return None,
-    }
-    Some(command)
 }
 
 /// The pen: where it is, the subpath it is drawing and the ones it has drawn.
@@ -331,6 +260,64 @@ struct Pen {
 }
 
 impl Pen {
+    /// Draws one segment. False for the two kinds this doesn't draw.
+    fn draw(&mut self, segment: PathSegment) -> bool {
+        let from = self.pos;
+        let at = |abs: bool, x: f64, y: f64| {
+            if abs {
+                pos2(x as f32, y as f32)
+            } else {
+                from + vec2(x as f32, y as f32)
+            }
+        };
+        match segment {
+            PathSegment::MoveTo { abs, x, y } => self.move_to(at(abs, x, y)),
+            PathSegment::LineTo { abs, x, y } => self.line_to(at(abs, x, y)),
+            PathSegment::HorizontalLineTo { abs, x } => {
+                self.line_to(pos2(at(abs, x, 0.0).x, from.y));
+            }
+            PathSegment::VerticalLineTo { abs, y } => {
+                self.line_to(pos2(from.x, at(abs, 0.0, y).y));
+            }
+            PathSegment::CurveTo {
+                abs,
+                x1,
+                y1,
+                x2,
+                y2,
+                x,
+                y,
+            } => {
+                let (c1, c2, end) = (at(abs, x1, y1), at(abs, x2, y2), at(abs, x, y));
+                self.curve_to(end, |t| cubic(from, c1, c2, end, t));
+            }
+            PathSegment::Quadratic { abs, x1, y1, x, y } => {
+                let (c, end) = (at(abs, x1, y1), at(abs, x, y));
+                self.curve_to(end, |t| quadratic(from, c, end, t));
+            }
+            PathSegment::EllipticalArc {
+                abs,
+                rx,
+                ry,
+                x_axis_rotation,
+                large_arc,
+                sweep,
+                x,
+                y,
+            } => {
+                let end = at(abs, x, y);
+                let radii = (rx as f32, ry as f32, x_axis_rotation as f32);
+                arc(&mut self.current, from, radii, large_arc, sweep, end);
+                self.pos = end;
+            }
+            PathSegment::ClosePath { .. } => self.close(),
+            PathSegment::SmoothCurveTo { .. } | PathSegment::SmoothQuadratic { .. } => {
+                return false;
+            }
+        }
+        true
+    }
+
     fn move_to(&mut self, to: Pos2) {
         self.end_subpath(false);
         self.start = to;
@@ -350,12 +337,9 @@ impl Pen {
         self.pos = end;
     }
 
-    fn close(&mut self, draws_on: bool) {
+    fn close(&mut self) {
         self.pos = self.start;
         self.end_subpath(true);
-        if draws_on {
-            self.current.push(self.pos);
-        }
     }
 
     fn end_subpath(&mut self, closed: bool) {
@@ -401,14 +385,12 @@ fn quadratic(from: Pos2, c: Pos2, end: Pos2, t: f32) -> Pos2 {
     p.to_pos2()
 }
 
-/// An SVG elliptical arc, flattened onto `into`.
-#[allow(clippy::too_many_arguments)]
+/// An SVG elliptical arc, flattened onto `into`. `radii` is rx, ry and the
+/// ellipse's tilt in degrees.
 fn arc(
     into: &mut Vec<Pos2>,
     from: Pos2,
-    rx: f32,
-    ry: f32,
-    rotation: f32,
+    (rx, ry, rotation): (f32, f32, f32),
     large: bool,
     sweep: bool,
     to: Pos2,
@@ -519,92 +501,6 @@ fn angle_between(ux: f32, uy: f32, vx: f32, vy: f32) -> f32 {
     if ux * vy - uy * vx < 0.0 { -a } else { a }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Token {
-    Command(char),
-    Number(f32),
-}
-
-/// A path's tokens, read from the front.
-struct Tokens {
-    tokens: Vec<Token>,
-    next: usize,
-}
-
-impl Tokens {
-    fn new(path: &str) -> Self {
-        Tokens {
-            tokens: tokenize(path),
-            next: 0,
-        }
-    }
-
-    fn done(&self) -> bool {
-        self.next >= self.tokens.len()
-    }
-
-    fn at_number(&self) -> bool {
-        matches!(self.tokens.get(self.next), Some(Token::Number(_)))
-    }
-
-    /// The command letter here, if this is one.
-    fn command(&mut self) -> Option<char> {
-        let Token::Command(c) = *self.tokens.get(self.next)? else {
-            return None;
-        };
-        self.next += 1;
-        Some(c)
-    }
-
-    fn number(&mut self) -> Option<f32> {
-        let Token::Number(n) = *self.tokens.get(self.next)? else {
-            return None;
-        };
-        self.next += 1;
-        Some(n)
-    }
-
-    /// The next `N` numbers, or None when a command or the end comes first.
-    fn numbers<const N: usize>(&mut self) -> Option<[f32; N]> {
-        let mut out = [0.0; N];
-        for slot in &mut out {
-            *slot = self.number()?;
-        }
-        Some(out)
-    }
-}
-
-fn tokenize(path: &str) -> Vec<Token> {
-    let mut out = Vec::new();
-    let bytes = path.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i] as char;
-        if c.is_ascii_alphabetic() {
-            out.push(Token::Command(c));
-            i += 1;
-        } else if c.is_ascii_digit() || c == '-' || c == '.' || c == '+' {
-            let start = i;
-            i += 1;
-            while i < bytes.len() {
-                let d = bytes[i] as char;
-                // A second '.' or a '-' starts the next number: "4.5.5", "4-4".
-                if d.is_ascii_digit() || (d == '.' && !path[start..i].contains('.')) {
-                    i += 1;
-                } else {
-                    break;
-                }
-            }
-            if let Ok(n) = path[start..i].parse::<f32>() {
-                out.push(Token::Number(n));
-            }
-        } else {
-            i += 1;
-        }
-    }
-    out
-}
-
 /// The icon's size for a body line.
 pub const SIZE: f32 = 16.0;
 
@@ -692,63 +588,6 @@ pub(crate) mod tests {
         }
     }
 
-    fn numbers(path: &str) -> Vec<f32> {
-        tokenize(path)
-            .into_iter()
-            .map(|token| match token {
-                Token::Number(n) => n,
-                Token::Command(c) => panic!("{c} in {path:?}"),
-            })
-            .collect()
-    }
-
-    #[test]
-    fn numbers_split_where_svg_splits_them() {
-        assert_eq!(numbers("6 9,6\t6\n6"), [6.0, 9.0, 6.0, 6.0, 6.0]);
-        assert_eq!(numbers("6-6"), [6.0, -6.0], "a sign starts a number");
-        assert_eq!(numbers("-3.5-3.5"), [-3.5, -3.5]);
-        assert_eq!(numbers("4.5.5"), [4.5, 0.5], "and so does a second dot");
-        assert_eq!(numbers(".01 +2"), [0.01, 2.0]);
-        assert_eq!(numbers("- 5"), [5.0], "a sign alone is dropped");
-    }
-
-    #[test]
-    fn letters_are_commands_and_keep_their_case() {
-        assert_eq!(
-            tokenize("M12 5v14h.01z"),
-            [
-                Token::Command('M'),
-                Token::Number(12.0),
-                Token::Number(5.0),
-                Token::Command('v'),
-                Token::Number(14.0),
-                Token::Command('h'),
-                Token::Number(0.01),
-                Token::Command('z'),
-            ]
-        );
-        // No exponents: "1e3" is 1, a command e, and 3, and `parse` stops at e.
-        assert_eq!(
-            tokenize("1e3"),
-            [Token::Number(1.0), Token::Command('e'), Token::Number(3.0)]
-        );
-    }
-
-    #[test]
-    fn tokens_hand_out_whole_groups_of_numbers_or_none() {
-        let mut tokens = Tokens::new("M1 2 3L4");
-        assert_eq!(tokens.numbers::<2>(), None, "a command is in the way");
-        assert_eq!(tokens.command(), Some('M'));
-        assert_eq!(tokens.command(), None);
-        assert_eq!(tokens.numbers(), Some([1.0, 2.0]));
-        assert!(tokens.at_number());
-        assert_eq!(tokens.numbers::<2>(), None, "one short");
-        assert_eq!(tokens.command(), Some('L'));
-        assert_eq!(tokens.number(), Some(4.0));
-        assert!(tokens.done());
-        assert_eq!(tokens.number(), None);
-    }
-
     fn points(path: &str) -> Vec<Vec<Pos2>> {
         parse(path).into_iter().map(|sub| sub.points).collect()
     }
@@ -812,16 +651,23 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn numbers_after_a_close_draw_on_from_the_start_point() {
-        let subs = parse("M1 1h4v4z2 2");
-        assert_eq!(subs.len(), 2);
-        assert!(subs[0].closed && !subs[1].closed);
-        assert_eq!(subs[1].points, [pos2(1.0, 1.0), pos2(3.0, 3.0)]);
+    fn numbers_split_where_svg_splits_them() {
+        let line = [[pos2(6.0, 9.0), pos2(6.0, 6.0)]];
+        assert_eq!(points("M6 9,6\t6"), line);
+        assert_eq!(points("M6 9 6 6"), line);
+        assert_eq!(points("M6 9l0-3"), line, "a sign starts a number");
+        assert_eq!(points("M6 9l-3.5-3.5"), [[pos2(6.0, 9.0), pos2(2.5, 5.5)]]);
         assert_eq!(
-            points("M1 1h4v4Z2 2")[1],
-            [pos2(1.0, 1.0), pos2(2.0, 2.0)],
-            "absolute after Z"
+            points("M6 9l4.5.5"),
+            [[pos2(6.0, 9.0), pos2(10.5, 9.5)]],
+            "and so does a second dot"
         );
+        assert_eq!(points("M1e1 2"), [[pos2(10.0, 2.0)]], "exponents");
+    }
+
+    #[test]
+    fn arc_flags_need_no_space_after_them() {
+        assert_eq!(points("M0 0a4 4 0 014 4"), points("M0 0a4 4 0 0 1 4 4"));
     }
 
     #[test]
@@ -831,6 +677,9 @@ pub(crate) mod tests {
         assert_eq!(points("M1 1L5 5S1 1 2 2L9 9"), drawn, "no S");
         assert_eq!(points("M1 1L5 5C1 1 2 2"), drawn, "half a curve");
         assert_eq!(points("M1 1L5 5A1 1 0 0 1 9"), drawn, "most of an arc");
+        assert_eq!(points("M1 1L5 5?L9 9"), drawn, "not path data");
+        assert_eq!(points("M1 1L5 5z2 2"), drawn, "numbers after a close");
+        assert!(parse("L1 1").is_empty(), "a path starts with a move");
         assert!(parse("").is_empty());
         assert!(parse("L").is_empty());
     }
