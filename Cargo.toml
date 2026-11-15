@@ -21,6 +21,8 @@ egui = ["dep:egui", "dep:svgtypes"]
 # Latin subsets lack.
 [dependencies]
 egui = { version = "0.37", default-features = false, features = ["default_fonts"], optional = true }
+# Reads GitHub's answer in update.rs, so the trays link it too.
+serde_json = "1"
 # Reads the icons' SVG path data. With egui only: the trays draw no paths.
 svgtypes = { version = "0.16", optional = true }
 

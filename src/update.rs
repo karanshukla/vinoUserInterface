@@ -252,13 +252,8 @@ pub fn is_newer(current: &str, latest: &str) -> bool {
 /// ends up in the window and in the update command's environment, so
 /// anything but `v`, digits, letters, dots and dashes is refused.
 pub fn latest_tag(json: &str) -> Option<String> {
-    let after = &json[json.find("\"tag_name\"")? + "\"tag_name\"".len()..];
-    let after = after
-        .trim_start()
-        .strip_prefix(':')?
-        .trim_start()
-        .strip_prefix('"')?;
-    let tag = &after[..after.find('"')?];
+    let release: serde_json::Value = serde_json::from_str(json).ok()?;
+    let tag = release.get("tag_name")?.as_str()?;
     let valid = !tag.is_empty()
         && tag.len() <= 32
         && tag.starts_with(|c: char| c == 'v' || c.is_ascii_digit())
@@ -327,6 +322,66 @@ mod tests {
         assert_eq!(latest_tag(r#"{"tag_name":"v1; rm -rf ~"}"#), None);
         assert_eq!(latest_tag(r#"{"tag_name":""}"#), None);
         assert_eq!(latest_tag(r#"{"message":"Not Found"}"#), None);
+    }
+
+    #[test]
+    fn the_tag_is_read_from_githubs_answer() {
+        let body = r#"{
+  "url": "https://api.github.com/repos/o/r/releases/1",
+  "id": 1,
+  "author": {"login": "o", "id": 2},
+  "tag_name": "v1.3.0",
+  "name": "v1.3.0",
+  "draft": false,
+  "assets": [{"name": "x.tar.gz", "size": 3}],
+  "body": "notes"
+}"#;
+        assert_eq!(latest_tag(body), Some("v1.3.0".into()));
+        assert_eq!(latest_tag("{\"tag_name\"\n:\t\"v2\"}"), Some("v2".into()));
+    }
+
+    #[test]
+    fn quotes_escaped_in_other_strings_do_not_end_them() {
+        assert_eq!(
+            latest_tag(r#"{"name":"the \"big\" one","tag_name":"v4","body":"say \"hi\""}"#),
+            Some("v4".into())
+        );
+        assert_eq!(latest_tag(r#"{"tag_name":"v1\"x"}"#), None);
+    }
+
+    #[test]
+    fn a_tag_name_inside_another_string_is_not_the_tag() {
+        assert_eq!(
+            latest_tag(r#"{"body":"set \"tag_name\": \"v9\" to release","tag_name":"v2"}"#),
+            Some("v2".into())
+        );
+        assert_eq!(
+            latest_tag(r#"{"body":"\"tag_name\": \"v9\""}"#),
+            None,
+            "and it is not taken when there is no tag"
+        );
+        assert_eq!(
+            latest_tag(r#"{"body":"tag_name: v9","tag_name":"v2"}"#),
+            Some("v2".into())
+        );
+    }
+
+    #[test]
+    fn only_the_releases_own_tag_name_counts() {
+        assert_eq!(
+            latest_tag(r#"{"author":{"tag_name":"v9"},"tag_name":"v2"}"#),
+            Some("v2".into())
+        );
+        assert_eq!(latest_tag(r#"{"author":{"tag_name":"v9"}}"#), None);
+        assert_eq!(latest_tag(r#"{"tag_name":"v2","na"#), None, "cut short");
+    }
+
+    #[test]
+    fn a_tag_that_is_not_a_string_is_no_tag() {
+        assert_eq!(latest_tag(r#"{"tag_name":null}"#), None);
+        assert_eq!(latest_tag(r#"{"tag_name":6}"#), None);
+        assert_eq!(latest_tag(""), None);
+        assert_eq!(latest_tag("<html>rate limited</html>"), None);
     }
 
     #[test]
