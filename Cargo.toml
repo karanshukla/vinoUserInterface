@@ -29,6 +29,9 @@ egui_kittest = { version = "0.37", default-features = false, features = ["wgpu",
 # Joins two renders into the side-by-side picture.
 image = { version = "0.25", default-features = false, features = ["png"] }
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
+# The reference icons::parse is tested against. Already in egui's own tree
+# (epaint draws with it), so it adds no crate; tests only, never linked.
+kurbo = "0.13"
 
 [[test]]
 name = "a11y"
