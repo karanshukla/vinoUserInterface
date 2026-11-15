@@ -145,34 +145,17 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
             }
         }
         Logo::AuthFace => {
-            // A viewfinder's four corners, in the grey the other logos keep
-            // for what stands behind the mark, round a face: two white eyes
-            // and a green smile, all as thick as the family's pills.
-            let pill = |x: f32, y: f32, w: f32, h: f32, colour: Color32| {
-                painter.rect_filled(
-                    Rect::from_min_max(at(x, y), at(x + w, y + h)),
-                    3.0 * k,
-                    colour,
-                );
-            };
-            for (x, y, w, h) in [
-                (12.0, 12.0, 15.0, 6.0),
-                (12.0, 12.0, 6.0, 15.0),
-                (37.0, 12.0, 15.0, 6.0),
-                (46.0, 12.0, 6.0, 15.0),
-                (12.0, 46.0, 15.0, 6.0),
-                (12.0, 37.0, 6.0, 15.0),
-                (37.0, 46.0, 15.0, 6.0),
-                (46.0, 37.0, 6.0, 15.0),
-            ] {
-                pill(x, y, w, h, FRAME);
-            }
-            pill(22.0, 22.0, 6.0, 9.0, WHITE);
-            pill(36.0, 22.0, 6.0, 9.0, WHITE);
-            for sub in icons::parse("M23 37Q32 46 41 37") {
-                let points: Vec<Pos2> = sub.points.iter().map(|p| at(p.x, p.y)).collect();
-                capped(painter, points, Stroke::new(6.0 * k, GREEN));
-            }
+            // The IR camera module, in the grey the other logos keep for what
+            // stands behind the mark, round a white lens ring and the green
+            // emitter dot beside it.
+            painter.rect_stroke(
+                Rect::from_min_max(at(12.5, 20.5), at(51.5, 43.5)),
+                6.5 * k,
+                Stroke::new(5.0 * k, FRAME),
+                egui::StrokeKind::Middle,
+            );
+            painter.circle_stroke(at(24.0, 32.0), 5.0 * k, Stroke::new(4.0 * k, WHITE));
+            painter.circle_filled(at(41.0, 32.0), 4.5 * k, GREEN);
         }
     }
 }
