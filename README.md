@@ -1,12 +1,8 @@
 # vinoUserInterface
 
-The egui theme and widgets shared by [vinoSearch](https://github.com/karanshukla/vinoSearch),
-[vinoWhisper](https://github.com/karanshukla/vinoWhisper) and
-[vinoSpeak](https://github.com/karanshukla/vinoSpeak): one look, built on
-vinopilot.ca's site.css. Inter, flat surfaces separated by hairlines, ink and
-green. The boards it implements are on the
-[vino UI canvas](https://claude.ai/code/artifact/f79675d7-67e0-4a99-a84d-8a22d3b3a8f6);
-how to put the parts together is in [DESIGN.md](DESIGN.md).
+The egui theme and widgets the [vinoPilot](https://vinopilot.ca/) apps share,
+so they have one look: Inter, flat surfaces separated by hairlines, ink and
+green, taken from vinopilot.ca's site.css.
 
 <p align="center">
   <img src="docs/images/settings-dark.png" width="49%" alt="A settings page in the dark theme: sidebar, a group of rows with switches and a field, an index stats strip">
@@ -18,13 +14,23 @@ page swaps its sidebar for tabs and keeps its rows wide:
 
 ![Two windows side by side on a 1366 x 768 screen](docs/images/side-by-side.png)
 
-## Using it
+## Requirements
+
+- Rust 1.95 and egui 0.37. The app brings its own eframe.
+- `busctl` or `gdbus` on `PATH` to follow the desktop's light or dark, text
+  size and reduced motion. Without them it keeps egui's default theme at 1x.
+- `curl`, only for the About page's update check, and only when the user asks.
+
+## Quick start
 
 ```toml
 [dependencies]
-vino-user-interface = "0.2"
+vino-user-interface = "0.5"
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland"] }
 ```
+
+A tray that links no egui takes `default-features = false` and gets `family`,
+`tray` and `update` only.
 
 A settings page: a group of rows, a banner, a status line.
 
@@ -89,10 +95,8 @@ fn main() -> eframe::Result {
 }
 ```
 
-The full window, with the sidebar that folds into tabs at `SIDEBAR_FROM` and
-pages that split into two columns on a wide window, is
-[examples/gallery.rs](examples/gallery.rs). Run it and drag the window
-narrower:
+The full window is [examples/gallery.rs](examples/gallery.rs). Run it and drag
+the window narrower:
 
 ```sh
 cargo run --example gallery
@@ -102,59 +106,28 @@ cargo run --example gallery
 
 | Module | Holds |
 |---|---|
-| `theme` | the tokens for dark and light, fonts, egui's visuals and spacing, and what the desktop asks for: light or dark (the Settings portal), text size, reduced motion, KDE's header colours |
-| `widgets` | group + row, switch, segmented control, the four button kinds, status text, filter chip, tag, key caps, progress and share bars, banner, notice, nav item, underline tab, selection ring and tint, a 10 fps spinner for real waits, the page scroll area, and the layout constants |
-| `icons` | a 16 px stroke icon set painted from SVG path data (no icon font), `Icon::ALL` for the lot |
-| `logo` | the app logos (Search, Whisper, Speak, AuthFace), painted at any size |
-| `file_tile` | a file's tile for a list, drawn like the logos, with a mark and an accent per format (`Format::from_extension`) |
-| `a11y` | headings, tabs, list boxes, live regions and naming for screen readers |
+| `theme` | colour tokens for dark and light, fonts, egui's visuals and spacing, and what the desktop asks for |
+| `widgets` | groups of rows, switches, buttons, status text, chips, tags, key caps, banners, navigation, the page scroll area and the layout constants |
+| `icons` | a 16 px stroke icon set painted from SVG path data, no icon font |
+| `logo` | the app logos, painted at any size |
+| `file_tile` | a file's tile for a list, with a mark and an accent per format |
+| `a11y` | headings, tabs, list boxes, live regions and names for screen readers |
+| `window` | the app's own title bar, for a window opened without the desktop's |
+| `about`, `update` | the About page, and its row that checks for a newer release and installs it |
+| `family`, `tray` | the apps and their links, and the icon names every tray menu uses. No egui |
 
 <p align="center">
   <img src="docs/images/widgets-dark.png" width="49%" alt="Every widget in the dark theme: buttons, status text, filter chips, tags, key caps, banners, icons, logos and file tiles">
   <img src="docs/images/widgets-light.png" width="49%" alt="Every widget in the light theme">
 </p>
 
-Colour has one job each: green means on, selected or done; amber means it
-needs you; red means it failed. The logos and file tiles are ink with one
-accent, which names the app or the file's format and nothing else. Status is
-words, not dots or pills, and nothing moves but feedback: a switch sliding, a
-spinner during a real wait. Menus and popups are the only shadowed surface.
+## Docs
 
-## Rules the code keeps
-
-- Text is 4.5:1 and the edges of controls 3:1 against the page, a surface, a
-  field and the three tints, in both themes. `cargo test` checks it over the
-  visuals as installed; a token that fails it does not ship.
-- Every control has a role and a name, is 24 px or has room around it, and
-  Tab reaches it. `tests/a11y.rs` checks that over the AccessKit tree, in both
-  themes, wide and narrow; CI runs it as its own `a11y` check.
-- A row lays its controls out from the right. A composite widget inside one
-  sizes itself up front and lays out left to right (see `segmented`, `keys`).
-- `widgets::switch` and the buttons are their own widgets, not styled egui
-  ones, so they can say what they are to a screen reader: a switch is a
-  `Switch` with the row's title for its name.
-- The bundled fonts are Latin subsets (`assets/fonts/README.md`). egui falls
-  back to its own fonts for other glyphs, and a glyph no font has panics in a
-  test, so check before putting a symbol in a window.
-
-## Checking a window by eye
-
-The README's pictures are the gallery rendered offscreen with wgpu. After a
-visual change, redraw them and commit `docs/images`:
-
-```sh
-cargo test --test screenshots -- --ignored
-```
-
-`VINO_UI_THEME=light|dark` forces the theme on a desktop without a portal.
-`scripts/shot.sh OUT THEME W H CMD...` runs a window as a floating `W x H`
-window on a sway desktop (the linuxlab VM's headless one) and screenshots it
-with grim.
-
-## Releasing
-
-Bump `version` in `Cargo.toml`, merge, then push a matching tag:
-`git tag -a v0.2.2 -m "vino-user-interface 0.2.2" && git push origin v0.2.2`.
-The release workflow reruns the checks, publishes to crates.io, then creates
-the GitHub Release with notes GitHub generates from the PRs merged since the
-last tag, so PR titles are the changelog. Then bump each app.
+- [DESIGN.md](DESIGN.md): how a vino window is laid out and why. Breakpoints,
+  tokens, which component when, motion, words.
+- [docs/development.md](docs/development.md): the rules the tests keep, how
+  the source is organised, redrawing the pictures, releasing.
+- [SECURITY.md](SECURITY.md): what the crate reads and runs, and how to
+  report a problem.
+- [The vino UI canvas](https://claude.ai/code/artifact/f79675d7-67e0-4a99-a84d-8a22d3b3a8f6):
+  the boards this implements.
