@@ -227,8 +227,8 @@ fn failure_line(stderr: &str) -> Option<String> {
     Some(out)
 }
 
-/// A version or tag as numbers: `v6` is [6], `1.2.0` and `v1.2.0` are
-/// [1, 2, 0]. Anything else (a `dev` build, a pre-release suffix) is `None`,
+/// A version or tag as numbers: `v6` is `[6]`, `1.2.0` and `v1.2.0` are
+/// `[1, 2, 0]`. Anything else (a `dev` build, a pre-release suffix) is `None`,
 /// and is never offered an update.
 pub fn version_parts(version: &str) -> Option<Vec<u64>> {
     let rest = version.strip_prefix('v').unwrap_or(version);
