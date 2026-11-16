@@ -6,62 +6,75 @@ use egui::{Color32, Theme};
 
 use super::Header;
 
+const PORTAL: &str = "org.freedesktop.portal.Desktop";
+const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
+/// A portal that is still starting would otherwise hold the frame for
+/// busctl's and gdbus's default 25 s.
+const PORTAL_TIMEOUT: &str = "--timeout=1";
+
 /// One value from the portal's Settings, as busctl prints it ("v u 1").
 /// Through gdbus where there is no busctl, as in a Flatpak's runtime.
 fn read_setting(namespace: &str, key: &str) -> Option<String> {
-    const PORTAL: &str = "org.freedesktop.portal.Desktop";
-    const PATH: &str = "/org/freedesktop/portal/desktop";
-    let run = |program: &str, args: &[&str]| {
-        let output = std::process::Command::new(program)
-            .args(args)
-            .stderr(std::process::Stdio::null())
-            .output()
-            .ok()?;
-        // None for no such program; an empty answer for a refusal.
-        Some(if output.status.success() {
-            String::from_utf8_lossy(&output.stdout).into_owned()
-        } else {
-            String::new()
-        })
-    };
-    // A portal that is still starting would hold the frame for either
-    // tool's default 25 s.
-    let busctl = [
-        "--user",
-        "--timeout=1",
-        "call",
-        PORTAL,
-        PATH,
-        "org.freedesktop.portal.Settings",
-        "ReadOne",
-        "ss",
-        namespace,
-        key,
-    ];
-    let reply = match run("busctl", &busctl) {
+    let reply = match read_with_busctl(namespace, key) {
         Some(reply) => reply,
-        None => {
-            let gdbus = [
-                "call",
-                "--session",
-                "--timeout=1",
-                "--dest",
-                PORTAL,
-                "--object-path",
-                PATH,
-                "--method",
-                "org.freedesktop.portal.Settings.ReadOne",
-                namespace,
-                key,
-            ];
-            from_gdbus(&run("gdbus", &gdbus)?)
-        }
+        None => from_gdbus(&read_with_gdbus(namespace, key)?),
     };
     (!reply.trim().is_empty()).then_some(reply)
 }
 
-// gdbus prints "(<uint32 1>,)" where busctl prints "v u 1": the value is
-// the last word of both once the brackets are off.
+fn read_with_busctl(namespace: &str, key: &str) -> Option<String> {
+    run(
+        "busctl",
+        &[
+            "--user",
+            PORTAL_TIMEOUT,
+            "call",
+            PORTAL,
+            PORTAL_PATH,
+            "org.freedesktop.portal.Settings",
+            "ReadOne",
+            "ss",
+            namespace,
+            key,
+        ],
+    )
+}
+
+fn read_with_gdbus(namespace: &str, key: &str) -> Option<String> {
+    run(
+        "gdbus",
+        &[
+            "call",
+            "--session",
+            PORTAL_TIMEOUT,
+            "--dest",
+            PORTAL,
+            "--object-path",
+            PORTAL_PATH,
+            "--method",
+            "org.freedesktop.portal.Settings.ReadOne",
+            namespace,
+            key,
+        ],
+    )
+}
+
+/// `program`'s stdout, or empty when it refused; None when it isn't there.
+fn run(program: &str, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new(program)
+        .args(args)
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    Some(if output.status.success() {
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    } else {
+        String::new()
+    })
+}
+
+/// gdbus's "(<uint32 1>,)" with the brackets off, so its value is the last
+/// word as in busctl's "v u 1" (pinned by `tests::gdbus_answers_read_as_busctls_do`).
 fn from_gdbus(reply: &str) -> String {
     reply
         .trim()
@@ -83,8 +96,10 @@ pub fn desktop_preference() -> Option<Theme> {
     parse_color_scheme(&read_setting("org.freedesktop.appearance", "color-scheme")?)
 }
 
-/// The portal's `color-scheme` for "prefer dark". 2 is "prefer light" and 0 is
-/// no preference, which desktops answer for their light default.
+/// The portal's `color-scheme` for "prefer dark". Anything else is light: 2
+/// is "prefer light" and 0 is no preference, which desktops answer for their
+/// light default (pinned by `tests::prefer_dark_picks_dark`,
+/// `tests::prefer_light_and_no_preference_pick_light`).
 const PREFERS_DARK: u32 = 1;
 
 fn parse_color_scheme(reply: &str) -> Option<Theme> {
@@ -102,7 +117,8 @@ pub fn reduced_motion() -> bool {
     gnome.as_deref().is_some_and(animations_off) || kde.as_deref().is_some_and(animations_off)
 }
 
-// "v b false", or a duration factor of "v d 0".
+/// GNOME's "v b false", or Plasma's duration factor "v d 0" (pinned by
+/// `tests::reduced_motion_reads_both_desktops`).
 fn animations_off(reply: &str) -> bool {
     match reply.split_whitespace().last() {
         Some("false") => true,
@@ -163,7 +179,8 @@ fn gnome_text_scale() -> Option<f32> {
     parse_scale(&String::from_utf8_lossy(&output.stdout))
 }
 
-// "v d 1.25", or gsettings' "1.25".
+/// The portal's "v d 1.25", or gsettings' "1.25" (pinned by
+/// `tests::the_text_scale_reads_the_portal_and_gsettings`).
 fn parse_scale(reply: &str) -> Option<f32> {
     let factor = reply.split_whitespace().last()?.parse::<f32>().ok()?;
     (factor.is_finite() && factor > 0.0).then_some(factor)
@@ -174,7 +191,9 @@ const QT_BASE_DPI: f32 = 96.0;
 /// Breeze's default general font, in points: 1x.
 const BREEZE_FONT_POINTS: f32 = 10.0;
 
-/// A forced DPI wins over the font's size, as it does in Qt.
+/// A forced DPI wins over the font's size, as it does in Qt (pinned by
+/// `tests::a_forced_dpi_wins_over_the_font_size`,
+/// `tests::a_zero_forced_dpi_falls_back_to_the_font_size`).
 fn kde_text_scale(kcmfontsrc: &str, kdeglobals: &str) -> Option<f32> {
     let dpi = ini_value(kcmfontsrc, "[General]", "forceFontDPI")
         .and_then(|dpi| dpi.parse::<f32>().ok())
@@ -185,7 +204,8 @@ fn kde_text_scale(kcmfontsrc: &str, kdeglobals: &str) -> Option<f32> {
     kde_font_scale(&ini_value(kdeglobals, "[General]", "font")?)
 }
 
-// A Qt font string, "Noto Sans,12,-1,5,50,0,0,0,0,0": family, then point size.
+/// The point size from a Qt font string, "Noto Sans,12,-1,5,50,0,0,0,0,0",
+/// over Breeze's (pinned by `tests::the_font_scale_is_the_qt_font_strings_point_size`).
 fn kde_font_scale(font: &str) -> Option<f32> {
     let points = font
         .trim_matches('"')
@@ -242,7 +262,8 @@ fn read_kde_config(name: &str) -> Option<String> {
 /// XDG_CONFIG_HOME, else the home's `.config`. In a Flatpak the home's
 /// first: XDG_CONFIG_HOME there is the app's own folder, which Plasma never
 /// writes to. The sandbox sees the home's only when it is let
-/// (`--filesystem=xdg-config/kdeglobals:ro`, or the home).
+/// (`--filesystem=xdg-config/kdeglobals:ro`, or the home) (pinned by
+/// `tests::plasmas_config_is_the_homes_first_in_a_flatpak`).
 fn config_dirs(
     sandboxed: bool,
     xdg_config: Option<std::ffi::OsString>,
@@ -311,10 +332,18 @@ mod tests {
     use crate::theme::{DARK, header};
 
     #[test]
-    fn the_portal_reply_picks_the_theme() {
+    fn prefer_dark_picks_dark() {
         assert_eq!(parse_color_scheme("v u 1\n"), Some(Theme::Dark));
+    }
+
+    #[test]
+    fn prefer_light_and_no_preference_pick_light() {
         assert_eq!(parse_color_scheme("v u 2\n"), Some(Theme::Light));
         assert_eq!(parse_color_scheme("v u 0\n"), Some(Theme::Light));
+    }
+
+    #[test]
+    fn no_answer_picks_no_theme() {
         assert_eq!(parse_color_scheme(""), None);
         assert_eq!(parse_color_scheme("garbage"), None);
     }
@@ -350,23 +379,37 @@ mod tests {
     }
 
     #[test]
-    fn text_scale_reads_both_desktops() {
+    fn the_text_scale_reads_the_portal_and_gsettings() {
         assert_eq!(parse_scale("v d 1.25\n"), Some(1.25));
         assert_eq!(parse_scale("1.5\n"), Some(1.5));
         assert_eq!(parse_scale("v d nan\n"), None);
         assert_eq!(parse_scale(""), None);
-        let font = |size: &str| format!("[General]\nfont=Noto Sans,{size},-1,5,50,0,0,0,0,0\n");
-        assert_eq!(kde_text_scale("", &font("10")), Some(1.0));
-        assert_eq!(kde_text_scale("", &font("15")), Some(1.5));
-        assert_eq!(kde_text_scale("", &font("0")), None);
+    }
+
+    fn kdeglobals_font(points: &str) -> String {
+        format!("[General]\nfont=Noto Sans,{points},-1,5,50,0,0,0,0,0\n")
+    }
+
+    #[test]
+    fn the_font_scale_is_the_qt_font_strings_point_size() {
+        assert_eq!(kde_text_scale("", &kdeglobals_font("10")), Some(1.0));
+        assert_eq!(kde_text_scale("", &kdeglobals_font("15")), Some(1.5));
+        assert_eq!(kde_text_scale("", &kdeglobals_font("0")), None);
         assert_eq!(kde_text_scale("", "[General]\nfont=Noto Sans\n"), None);
+    }
+
+    #[test]
+    fn a_forced_dpi_wins_over_the_font_size() {
         assert_eq!(
-            kde_text_scale("[General]\nforceFontDPI=144\n", &font("10")),
-            Some(1.5),
-            "a forced DPI wins"
+            kde_text_scale("[General]\nforceFontDPI=144\n", &kdeglobals_font("10")),
+            Some(1.5)
         );
+    }
+
+    #[test]
+    fn a_zero_forced_dpi_falls_back_to_the_font_size() {
         assert_eq!(
-            kde_text_scale("[General]\nforceFontDPI=0\n", &font("12")),
+            kde_text_scale("[General]\nforceFontDPI=0\n", &kdeglobals_font("12")),
             Some(1.2)
         );
     }

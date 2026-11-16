@@ -151,9 +151,8 @@ pub fn header_frame(colors: theme::Header, p: &Palette) -> egui::Frame {
     egui::Frame::new()
         .fill(colors.bg)
         .stroke(Stroke::new(1.0_f32, p.rule))
-        // A Frame draws its stroke round the outside of the margin. Pulled
-        // back a pixel on three sides, that stroke falls off the strip's
-        // edges and only the hairline under it is left.
+        // A Frame draws its stroke outside the margin: pulled back a pixel
+        // on three sides, only the hairline under the strip is left in view.
         .outer_margin(egui::Margin {
             left: -1,
             right: -1,
@@ -238,12 +237,11 @@ pub enum Edge {
 /// margin its frame has.
 pub fn panel_rule(ui: &Ui, side: Edge) {
     let p = palette(ui);
-    // A panel clips to its own rect, margin included.
-    let rect = ui.clip_rect();
+    let panel_with_margin = ui.clip_rect();
     let x = match side {
-        Edge::Left => rect.right() - 0.5,
-        Edge::Right => rect.left() + 0.5,
+        Edge::Left => panel_with_margin.right() - 0.5,
+        Edge::Right => panel_with_margin.left() + 0.5,
     };
     ui.painter()
-        .vline(x, rect.y_range(), Stroke::new(1.0_f32, p.rule));
+        .vline(x, panel_with_margin.y_range(), Stroke::new(1.0_f32, p.rule));
 }

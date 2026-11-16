@@ -35,8 +35,8 @@ pub fn group_on<R>(ui: &mut Ui, ground: Color32, add: impl FnOnce(&mut Ui) -> R)
     let p = palette(ui);
     let outer = ui.available_rect_before_wrap();
     let fill = ui.painter().add(Shape::Noop);
-    // Rows run to the group's edge: the rule is painted over the outermost
-    // pixel of their padding, so text lines up with a banner's.
+    // Rows run to the group's edge and the rule is painted inside it, over
+    // their padding's outermost pixel, so text lines up with a banner's.
     let inner_rect = Rect::from_min_size(outer.min, vec2(outer.width(), f32::INFINITY));
     let inner = ui.scope_builder(
         UiBuilder::new()
@@ -315,13 +315,7 @@ fn stacked_row<R>(
     );
     let out = control(&mut control_ui);
     let control_width = control_ui.min_rect().width().max(0.0);
-    ui.data_mut(|d| d.insert_temp(width_id, control_width));
-    // Seen for the first time, or changed: draw again at once, beside the
-    // label if it fits there now, or in a box of its new width.
-    let changed = last_control_width.is_none_or(|width| (width - control_width).abs() > 0.5);
-    if control_width > 0.0 && changed {
-        ui.ctx().request_discard("a row's control changed width");
-    }
+    remember_control_width(ui, width_id, last_control_width, control_width);
     let control_height = control_ui.min_rect().height().max(0.0);
     let bottom = if control_height > 0.0 {
         control_top + control_height.max(CONTROL_HEIGHT)
@@ -329,6 +323,17 @@ fn stacked_row<R>(
         space.top + ROW_PADDING.y + label_height
     };
     (out, label_id, bottom - space.top - ROW_PADDING.y)
+}
+
+/// Keeps this frame's control width for the next, and redraws at once when
+/// it is new or changed, so the control lands beside the label if it fits
+/// there now, or in a box of its new width.
+fn remember_control_width(ui: &Ui, width_id: Id, last: Option<f32>, now: f32) {
+    ui.data_mut(|d| d.insert_temp(width_id, now));
+    let changed = last.is_none_or(|width| (width - now).abs() > 0.5);
+    if now > 0.0 && changed {
+        ui.ctx().request_discard("a row's control changed width");
+    }
 }
 
 /// The control first, centred on the label's likely height, measured at the

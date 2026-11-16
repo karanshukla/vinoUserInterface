@@ -15,8 +15,7 @@ const SCALE: f32 = 2.0;
 const MARGIN: f32 = 8.0;
 
 fn render(theme: Theme, page: Page, width: f32, height: f32) -> RgbaImage {
-    // The harness draws a frame as it is built, so the theme goes in on that
-    // first frame, as tests/a11y.rs does it.
+    // The harness draws a frame as it is built: the theme goes in on that one.
     let mut h = Harness::builder()
         .with_size((width + 2.0 * MARGIN, height + 2.0 * MARGIN))
         .with_pixels_per_point(SCALE)
@@ -26,7 +25,7 @@ fn render(theme: Theme, page: Page, width: f32, height: f32) -> RgbaImage {
                 if !*styled {
                     theme::apply(ui.ctx());
                     ui.ctx().set_theme(theme);
-                    // Still: switches at rest and a spinner that asks for no more frames.
+                    // Switches at rest, and a spinner that asks for no more frames.
                     ui.ctx().all_styles_mut(|style| style.animation_time = 0.0);
                     *styled = true;
                     ui.ctx().request_repaint();
@@ -88,6 +87,5 @@ fn readme_pictures() {
         "side-by-side",
     );
     save(&render(Theme::Dark, Page::General, 380.0, 700.0), "narrow");
-    // A full 1440 x 900 screen: a wider sidebar, and the page in two columns.
     save(&render(Theme::Dark, Page::General, 1440.0, 860.0), "wide");
 }

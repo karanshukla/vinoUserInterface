@@ -45,8 +45,16 @@ pub fn switch(ui: &mut Ui, on: &mut bool, name: &str) -> Response {
     response
 }
 
+/// A segment's padding beside its label, and the gap between two.
+const SEGMENT_PADDING: f32 = 20.0;
+const SEGMENT_GAP: f32 = 2.0;
+const SEGMENT_HEIGHT: f32 = 24.0;
+
 /// Two to four short options in one control; a radio group for screen
-/// readers, with Left and Right moving the choice. True when it changed.
+/// readers, with Left and Right moving the choice and the focus, round from
+/// the last to the first (pinned by
+/// `widgets::tests::a_segmented_control_is_a_radio_group_that_arrows_move`).
+/// True when it changed.
 pub fn segmented<T: Copy + PartialEq>(
     ui: &mut Ui,
     name: &str,
@@ -67,28 +75,26 @@ pub fn segmented<T: Copy + PartialEq>(
             )
         })
         .collect();
-    // Sized up front: a row lays its controls out from the right.
-    let total = galleys.iter().map(|g| g.size().x + 20.0).sum::<f32>()
-        + 2.0 * options.len().saturating_sub(1) as f32;
+    let total = segments_width(&galleys);
     let recessed_track = egui::Frame::new()
         .fill(faded(p.pressed, enabled))
         .corner_radius(8.0)
-        .inner_margin(2.0);
+        .inner_margin(SEGMENT_GAP);
     recessed_track.show(ui, |ui| {
         ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
             node.set_role(Role::RadioGroup);
             node.set_label(name);
         });
-        ui.spacing_mut().item_spacing.x = 2.0;
+        ui.spacing_mut().item_spacing.x = SEGMENT_GAP;
         ui.allocate_ui_with_layout(
-            vec2(total, 24.0),
+            vec2(total, SEGMENT_HEIGHT),
             Layout::left_to_right(Align::Center),
             |ui| {
                 let mut ids = Vec::with_capacity(options.len());
                 let mut move_focus = None;
                 for (i, ((value, label), galley)) in options.iter().zip(galleys).enumerate() {
                     let selected = *current == *value;
-                    let size = vec2(galley.size().x + 20.0, 24.0);
+                    let size = vec2(galley.size().x + SEGMENT_PADDING, SEGMENT_HEIGHT);
                     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
                     ids.push(response.id);
                     response.widget_info(|| {
@@ -98,18 +104,7 @@ pub fn segmented<T: Copy + PartialEq>(
                         *current = *value;
                     }
                     if response.has_focus() {
-                        // The arrows are ours: egui would move focus by them
-                        // too, and it can't wrap round.
-                        ui.memory_mut(|m| {
-                            m.set_focus_lock_filter(
-                                response.id,
-                                egui::EventFilter {
-                                    horizontal_arrows: true,
-                                    vertical_arrows: true,
-                                    ..Default::default()
-                                },
-                            )
-                        });
+                        take_arrow_keys(ui, response.id);
                         let step = arrow_step(ui);
                         if step != 0 {
                             let to = (i as i32 + step).rem_euclid(options.len() as i32) as usize;
@@ -117,29 +112,8 @@ pub fn segmented<T: Copy + PartialEq>(
                             move_focus = Some(to);
                         }
                     }
-                    let painter = ui.painter();
-                    if selected {
-                        painter.rect(
-                            rect,
-                            6.0,
-                            faded(p.surface, enabled),
-                            Stroke::new(1.0_f32, faded(p.rule_strong, enabled)),
-                            StrokeKind::Inside,
-                        );
-                    } else if response.hovered() && enabled {
-                        painter.rect_filled(rect, 6.0, p.field);
-                    }
-                    let color = if selected { p.text } else { p.muted };
-                    painter.galley(
-                        rect.center() - galley.size() / 2.0,
-                        galley,
-                        faded(color, enabled),
-                    );
-                    if response.has_focus() {
-                        paint_focus_ring(painter, rect.expand(2.0), 8.0, p);
-                    }
+                    paint_segment(ui, rect, &response, galley, selected, enabled);
                 }
-                // Focus follows the choice, as in any radio group.
                 if let Some(to) = move_focus {
                     ui.memory_mut(|m| m.request_focus(ids[to]));
                 }
@@ -147,6 +121,62 @@ pub fn segmented<T: Copy + PartialEq>(
         );
     });
     *current != before
+}
+
+/// Sized up front: a row lays its controls out from the right.
+fn segments_width(galleys: &[std::sync::Arc<egui::Galley>]) -> f32 {
+    galleys
+        .iter()
+        .map(|g| g.size().x + SEGMENT_PADDING)
+        .sum::<f32>()
+        + SEGMENT_GAP * galleys.len().saturating_sub(1) as f32
+}
+
+/// Keeps the arrow keys from egui while `id` has focus: it would move focus
+/// by them too, and can't wrap round.
+fn take_arrow_keys(ui: &Ui, id: egui::Id) {
+    ui.memory_mut(|m| {
+        m.set_focus_lock_filter(
+            id,
+            egui::EventFilter {
+                horizontal_arrows: true,
+                vertical_arrows: true,
+                ..Default::default()
+            },
+        )
+    });
+}
+
+fn paint_segment(
+    ui: &Ui,
+    rect: Rect,
+    response: &Response,
+    galley: std::sync::Arc<egui::Galley>,
+    selected: bool,
+    enabled: bool,
+) {
+    let p = palette(ui);
+    let painter = ui.painter();
+    if selected {
+        painter.rect(
+            rect,
+            6.0,
+            faded(p.surface, enabled),
+            Stroke::new(1.0_f32, faded(p.rule_strong, enabled)),
+            StrokeKind::Inside,
+        );
+    } else if response.hovered() && enabled {
+        painter.rect_filled(rect, 6.0, p.field);
+    }
+    let color = if selected { p.text } else { p.muted };
+    painter.galley(
+        rect.center() - galley.size() / 2.0,
+        galley,
+        faded(color, enabled),
+    );
+    if response.has_focus() {
+        paint_focus_ring(painter, rect.expand(2.0), 8.0, p);
+    }
 }
 
 /// Which way the arrow keys move a choice this frame: 1 on, -1 back, 0 not
@@ -258,6 +288,9 @@ pub fn field<'t>(text: &'t mut String, hint: &str, width: f32) -> egui::TextEdit
         .align(egui::Align2::LEFT_CENTER)
 }
 
+const SEARCH_HEIGHT: f32 = 38.0;
+const SEARCH_PADDING: i8 = 12;
+
 /// A larger search field with a search icon and an accent ring while it has
 /// focus. `name` is its accessible name.
 pub fn search_field(
@@ -276,18 +309,18 @@ pub fn search_field(
         Stroke::new(1.0_f32, p.edge)
     };
     // A Frame adds its stroke outside the margin, so the stroke's width comes
-    // off the margin and the height: the field stays `width` x 38 and its
-    // text where it was when the ring thickens on focus.
+    // off the margin and the height (pinned by
+    // `widgets::tests::a_search_field_stays_put_when_its_ring_thickens`).
     let ring = stroke.width as i8;
     let frame = egui::Frame::new()
         .fill(p.field)
         .stroke(stroke)
         .corner_radius(10.0)
-        .inner_margin(egui::Margin::symmetric(12 - ring, 0));
+        .inner_margin(egui::Margin::symmetric(SEARCH_PADDING - ring, 0));
     frame
         .show(ui, |ui| {
-            ui.set_width(width - 24.0);
-            ui.set_height(38.0 - 2.0 * stroke.width);
+            ui.set_width(width - 2.0 * f32::from(SEARCH_PADDING));
+            ui.set_height(SEARCH_HEIGHT - 2.0 * stroke.width);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
                 icons::icon(ui, Icon::Search, 16.0, p.muted);

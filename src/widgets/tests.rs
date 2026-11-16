@@ -5,6 +5,34 @@ use egui::{Role, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 
+/// What kittest puts round the app on each side.
+const KITTEST_MARGIN: f32 = 8.0;
+
+/// A field too wide to share a row narrower than `NARROW` with its label.
+const FITS_ONLY_A_NARROW_ROW: f32 = 300.0;
+
+/// A harness `width` wide inside kittest's margin.
+fn outer(width: f32) -> f32 {
+    width + 2.0 * KITTEST_MARGIN
+}
+
+/// Installs the theme on the first frame, which then draws nothing else:
+/// true when the caller should return.
+fn styling_first_frame(ui: &Ui, styled: &mut bool) -> bool {
+    if *styled {
+        return false;
+    }
+    theme::apply(ui.ctx());
+    *styled = true;
+    ui.ctx().request_repaint();
+    true
+}
+
+/// A row's width, padding to padding, from its label's and control's rects.
+fn row_width(label: egui::Rect, control: egui::Rect) -> f32 {
+    control.max.x - label.min.x + 2.0 * ROW_PADDING.x
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Device {
     Npu,
@@ -24,10 +52,7 @@ struct State {
 fn harness(width: f32) -> Harness<'static, State> {
     Harness::builder().with_size((width, 600.0)).build_ui_state(
         |ui, state: &mut State| {
-            if !state.styled {
-                theme::apply(ui.ctx());
-                state.styled = true;
-                ui.ctx().request_repaint();
+            if styling_first_frame(ui, &mut state.styled) {
                 return;
             }
             group_label(ui, "What to index");
@@ -99,10 +124,7 @@ fn harness(width: f32) -> Harness<'static, State> {
 fn a_busy_status_is_words_that_stand_still() {
     let mut h = Harness::builder().with_size((400.0, 100.0)).build_ui_state(
         |ui, styled: &mut bool| {
-            if !*styled {
-                theme::apply(ui.ctx());
-                *styled = true;
-                ui.ctx().request_repaint();
+            if styling_first_frame(ui, styled) {
                 return;
             }
             chip_busy(ui, ChipKind::Neutral, "Checking…");
@@ -164,6 +186,13 @@ fn a_segmented_control_is_a_radio_group_that_arrows_move() {
 }
 
 #[test]
+fn a_control_passed_through_named_takes_the_rows_title() {
+    let mut h = harness(820.0);
+    h.run();
+    h.get_by_role_and_label(Role::SpinButton, "Unload after");
+}
+
+#[test]
 fn buttons_chips_tags_and_banners_read_as_their_text() {
     let mut h = harness(820.0);
     h.run();
@@ -174,8 +203,6 @@ fn buttons_chips_tags_and_banners_read_as_their_text() {
     h.get_by_label("The vision model isn't downloaded yet.");
     h.get_by_role_and_label(Role::Button, "Download");
     h.get_by_role_and_label(Role::Heading, "What to index");
-    // Passed through `named`, a control takes the row's title as its name.
-    h.get_by_role_and_label(Role::SpinButton, "Unload after");
     let chip = h.get_by_role_and_label(Role::CheckBox, "Images (8)");
     assert_eq!(chip.accesskit_node().toggled(), Some(Toggled::True));
     chip.click();
@@ -214,10 +241,7 @@ fn a_stacked_row_keeps_the_order_it_has_beside_the_label() {
 fn an_icon_only_button_is_square() {
     let mut h = Harness::builder().with_size((200.0, 100.0)).build_ui_state(
         |ui, styled: &mut bool| {
-            if !*styled {
-                theme::apply(ui.ctx());
-                *styled = true;
-                ui.ctx().request_repaint();
+            if styling_first_frame(ui, styled) {
                 return;
             }
             icon_button(ui, ButtonKind::Secondary, Icon::Refresh, "Refresh");
@@ -235,15 +259,11 @@ fn an_icon_only_button_is_square() {
 /// share a narrower row with its label still sits beside it there.
 #[test]
 fn the_sidebar_breakpoint_leaves_a_row_exactly_narrow() {
-    // kittest puts 8 px round the app: the ui inside is SIDEBAR_FROM wide.
     let mut h = Harness::builder()
-        .with_size((SIDEBAR_FROM + 16.0, 400.0))
+        .with_size((outer(SIDEBAR_FROM), 400.0))
         .build_ui_state(
             |ui, (styled, text): &mut (bool, String)| {
-                if !*styled {
-                    theme::apply(ui.ctx());
-                    *styled = true;
-                    ui.ctx().request_repaint();
+                if styling_first_frame(ui, styled) {
                     return;
                 }
                 let p = palette(ui);
@@ -266,9 +286,7 @@ fn the_sidebar_breakpoint_leaves_a_row_exactly_narrow() {
                         page_scroll(ui, "General", CONTENT_MAX, |ui| {
                             group(ui, |ui| {
                                 Row::new("Folder").show(ui, |ui, named| {
-                                    // 300 wide: beside the label only
-                                    // because the row is NARROW wide.
-                                    named(ui.add(field(text, "", 300.0)));
+                                    named(ui.add(field(text, "", FITS_ONLY_A_NARROW_ROW)));
                                 });
                             });
                         });
@@ -283,8 +301,7 @@ fn the_sidebar_breakpoint_leaves_a_row_exactly_narrow() {
         (field.center().y - label.center().y).abs() < 1.0,
         "the field sits beside its label at SIDEBAR_FROM"
     );
-    // Padding to padding, the row is NARROW wide.
-    assert_eq!(field.max.x - label.min.x + 2.0 * ROW_PADDING.x, NARROW);
+    assert_eq!(row_width(label, field), NARROW);
 }
 
 #[test]
@@ -296,13 +313,6 @@ fn rows_name_their_controls_at_both_widths() {
         assert!(
             switch.rect().max.x <= width + 0.5,
             "{width}: the switch is inside the window"
-        );
-        // A switch is small enough to stay beside its label at any width.
-        let images = h.get_by_role_and_label(Role::Label, "Images");
-        assert!(
-            (switch.rect().center().y - images.rect().bottom()).abs() < 24.0
-                && switch.rect().min.x > images.rect().max.x,
-            "{width}: the switch sits beside its label"
         );
         let verify = h.get_by_role_and_label(Role::Button, "Verify");
         let title = h.get_by_role_and_label(Role::Label, "Download");
@@ -317,6 +327,23 @@ fn rows_name_their_controls_at_both_widths() {
                 "{width}: the control sits under its label"
             );
         }
+    }
+}
+
+/// The rule `a_narrow_row_keeps_a_control_that_leaves_the_label_its_minimum`
+/// keeps, for the smallest control there is.
+#[test]
+fn a_switch_stays_beside_its_label_at_any_width() {
+    for width in [820.0, 380.0] {
+        let mut h = harness(width);
+        h.run();
+        let switch = h.get_by_role_and_label(Role::Switch, "Index images");
+        let images = h.get_by_role_and_label(Role::Label, "Images");
+        assert!(
+            (switch.rect().center().y - images.rect().bottom()).abs() < 24.0
+                && switch.rect().min.x > images.rect().max.x,
+            "{width}: the switch sits beside its label"
+        );
     }
 }
 
@@ -340,16 +367,12 @@ fn the_sidebar_and_inset_grow_without_shrinking_the_page() {
 }
 
 fn two_groups(width: f32, zoom: f32) -> Harness<'static, (bool, String, String)> {
-    // kittest puts 8 px round the app.
     Harness::builder()
-        .with_size((width + 16.0, 600.0))
+        .with_size((outer(width), 600.0))
         .build_ui_state(
             move |ui, (styled, a, b): &mut (bool, String, String)| {
-                if !*styled {
-                    theme::apply(ui.ctx());
+                if styling_first_frame(ui, styled) {
                     ui.ctx().set_zoom_factor(zoom);
-                    *styled = true;
-                    ui.ctx().request_repaint();
                     return;
                 }
                 columns(ui, |ui, column| {
@@ -359,8 +382,7 @@ fn two_groups(width: f32, zoom: f32) -> Harness<'static, (bool, String, String)>
                     };
                     group(ui, |ui| {
                         Row::new(label).show(ui, |ui, named| {
-                            // 300 wide: beside the label only in a row NARROW wide.
-                            named(ui.add(field(text, "", 300.0)));
+                            named(ui.add(field(text, "", FITS_ONLY_A_NARROW_ROW)));
                         });
                     });
                 });
@@ -390,7 +412,7 @@ fn columns_split_only_where_both_keep_wide_rows() {
         (folder.center().y - label.center().y).abs() < 1.0,
         "the field sits beside its label"
     );
-    assert_eq!(folder.max.x - label.min.x + 2.0 * ROW_PADDING.x, NARROW);
+    assert_eq!(row_width(label, folder), NARROW);
 
     for (width, zoom) in [(TWO_COLUMNS_FROM - 1.0, 1.0), (1.5 * TWO_COLUMNS_FROM, 2.0)] {
         let mut h = two_groups(width, zoom);
@@ -407,7 +429,7 @@ fn columns_split_only_where_both_keep_wide_rows() {
 
 fn scrolled_field(width: f32, max_width: f32) -> Harness<'static, String> {
     Harness::builder()
-        .with_size((width + 16.0, 300.0))
+        .with_size((outer(width), 300.0))
         .build_ui_state(
             move |ui, text: &mut String| {
                 page_scroll(ui, "Results", max_width, |ui| {
@@ -431,4 +453,26 @@ fn only_a_wide_max_page_is_capped_when_narrow() {
     };
     assert!(field_w(WIDE_MAX) <= CONTENT_MAX);
     assert!(field_w(f32::INFINITY) > CONTENT_MAX + 100.0);
+}
+
+/// A focused search field's ring is 2 px where the resting one is 1, and the
+/// text inside doesn't move for it.
+#[test]
+fn a_search_field_stays_put_when_its_ring_thickens() {
+    let mut h = Harness::builder().with_size((400.0, 100.0)).build_ui_state(
+        |ui, (styled, text): &mut (bool, String)| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            search_field(ui, text, "Search", "Search", 300.0);
+        },
+        (false, String::new()),
+    );
+    h.run();
+    let resting = h.get_by_role(Role::TextInput).rect();
+    h.get_by_role(Role::TextInput).focus();
+    h.run();
+    let focused = h.get_by_role(Role::TextInput);
+    assert!(focused.is_focused());
+    assert_eq!(focused.rect(), resting);
 }

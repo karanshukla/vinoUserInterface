@@ -48,19 +48,8 @@ pub fn page_scroll<R>(
             ..Default::default()
         })
         .show(ui, |ui| {
-            // The scroll area already keeps its bar `bar_inner_margin` off the
-            // content; the rest of SCROLL_GAP comes off here, so the gap is
-            // SCROLL_GAP and SIDEBAR_FROM leaves a row exactly NARROW wide.
-            let gap = (SCROLL_GAP - ui.spacing().scroll.bar_inner_margin).max(0.0);
-            let width = ui.available_width() - gap;
-            // Too narrow for two columns, a WIDE_MAX page is one column like
-            // any other. Only WIDE_MAX: full-width content stays full width.
-            let max_width = if max_width == WIDE_MAX && width < TWO_COLUMNS_FROM {
-                max_width.min(CONTENT_MAX)
-            } else {
-                max_width
-            };
-            ui.set_max_width(width.min(max_width));
+            let width = ui.available_width() - gap_before_bar(ui);
+            ui.set_max_width(width.min(cap_for(max_width, width)));
             let out = add(ui);
             ui.add_space(16.0);
             out
@@ -68,6 +57,25 @@ pub fn page_scroll<R>(
     a11y::name_scrolling(ui, &scrolled, what);
     fade_below(ui, &scrolled, p.bg);
     scrolled.inner
+}
+
+/// What `SCROLL_GAP` leaves after the `bar_inner_margin` the scroll area
+/// already keeps, so the gap is `SCROLL_GAP` and `SIDEBAR_FROM` leaves a row
+/// exactly `NARROW` wide (pinned by
+/// `widgets::tests::the_sidebar_breakpoint_leaves_a_row_exactly_narrow`).
+fn gap_before_bar(ui: &Ui) -> f32 {
+    (SCROLL_GAP - ui.spacing().scroll.bar_inner_margin).max(0.0)
+}
+
+/// A `WIDE_MAX` page too narrow for two columns is one column like any
+/// other; any other cap stays, full width included (pinned by
+/// `widgets::tests::only_a_wide_max_page_is_capped_when_narrow`).
+fn cap_for(max_width: f32, width: f32) -> f32 {
+    if max_width == WIDE_MAX && width < TWO_COLUMNS_FROM {
+        max_width.min(CONTENT_MAX)
+    } else {
+        max_width
+    }
 }
 
 /// How far a window this wide is from `SIDEBAR_FROM` to `FLUID_TO`, 0 to 1.
