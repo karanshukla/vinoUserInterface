@@ -31,6 +31,12 @@ const BUTTON_GAP: f32 = 6.0;
 const EDGE: f32 = 5.0;
 /// A corner's grip, along each edge.
 const CORNER: f32 = 14.0;
+/// A window button's glyph stroke: on the icons' grid, a little lighter
+/// than an icon's.
+const GLYPH_STROKE: f32 = 1.6;
+/// Close, pressed: the destructive red this much darker.
+const CLOSE_PRESSED_DARKEN: f32 = 0.18;
+const FOCUS_RING: f32 = 2.0;
 
 /// Whether this desktop gets the app's title bar. `VINO_UI_TITLE_BAR=app` or
 /// `system` decides; otherwise every desktop but a tiling one, where windows
@@ -102,7 +108,6 @@ impl Action {
         }
     }
 
-    // On the icons' 24-unit grid, a little lighter than they are.
     fn path(self) -> &'static str {
         match self {
             Action::Minimise => "M7 12h10",
@@ -164,32 +169,41 @@ pub fn bar(root: &mut Ui, inset: f32, title: impl FnOnce(&mut Ui), beside: impl 
         .show(root, |ui| {
             drag(ui, ui.clip_rect(), "bar");
             ui.style_mut().interaction.selectable_labels = false;
-            // The buttons and what is beside them first, from the right, so the
-            // title gets what is left and is cut off before it reaches them.
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                ui.allocate_ui_with_layout(
-                    vec2(controls_width(), BUTTON),
-                    Layout::right_to_left(Align::Center),
-                    controls,
-                );
-                ui.add_space(4.0);
-                // As high as a button, so what is beside them is centred on them.
-                ui.allocate_ui_with_layout(
-                    vec2(ui.available_width(), BUTTON),
-                    Layout::right_to_left(Align::Center),
-                    beside,
-                );
+                buttons_and_beside(ui, beside);
                 ui.add_space(TITLE_GAP);
-                ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
-                    let clip = ui.max_rect().intersect(ui.clip_rect());
-                    ui.set_clip_rect(clip);
-                    ui.vertical(|ui| {
-                        ui.add_space(TITLE_DROP);
-                        ui.horizontal(title);
-                    });
-                });
+                title_in_what_is_left(ui, title);
             });
         });
+}
+
+/// Laid out first, from the right, so the title only gets what they leave
+/// (pinned by `tests/window.rs::a_long_title_stops_short_of_the_buttons`).
+/// `beside` is as high as a button, so it is centred on them.
+fn buttons_and_beside(ui: &mut Ui, beside: impl FnOnce(&mut Ui)) {
+    ui.allocate_ui_with_layout(
+        vec2(controls_width(), BUTTON),
+        Layout::right_to_left(Align::Center),
+        controls,
+    );
+    ui.add_space(4.0);
+    ui.allocate_ui_with_layout(
+        vec2(ui.available_width(), BUTTON),
+        Layout::right_to_left(Align::Center),
+        beside,
+    );
+}
+
+/// The title, clipped to what is left of the bar.
+fn title_in_what_is_left(ui: &mut Ui, title: impl FnOnce(&mut Ui)) {
+    ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+        let clip = ui.max_rect().intersect(ui.clip_rect());
+        ui.set_clip_rect(clip);
+        ui.vertical(|ui| {
+            ui.add_space(TITLE_DROP);
+            ui.horizontal(title);
+        });
+    });
 }
 
 /// [`controls`] up in the window's top right corner, [`BAR_GAP`] from its
@@ -227,29 +241,44 @@ fn button(ui: &mut Ui, action: Action) -> Response {
     if !ui.is_rect_visible(rect) {
         return response;
     }
-    let pressed = response.is_pointer_button_down_on();
-    let hovered = response.hovered();
-    // Close turns the destructive red under the pointer, as a desktop's does;
-    // the others are ghost buttons.
-    let (fill, color) = match action {
-        Action::Close if pressed => (p.danger.lerp_to_gamma(Color32::BLACK, 0.18), p.danger_text),
+    let (fill, color) = button_colours(
+        p,
+        action,
+        response.is_pointer_button_down_on(),
+        response.hovered(),
+    );
+    let painter = ui.painter();
+    painter.rect_filled(rect, BUTTON / 2.0, fill);
+    let glyph = Rect::from_center_size(rect.center(), vec2(icons::SIZE, icons::SIZE));
+    icons::paint_path(painter, glyph, action.path(), GLYPH_STROKE, color);
+    if response.has_focus() {
+        painter.circle_stroke(
+            rect.center(),
+            BUTTON / 2.0 + FOCUS_RING,
+            Stroke::new(FOCUS_RING, p.accent),
+        );
+    }
+    response
+}
+
+/// Fill and glyph colour: Close in the destructive red under the pointer, as
+/// a desktop's is; the others ghost buttons.
+fn button_colours(
+    p: &theme::Palette,
+    action: Action,
+    pressed: bool,
+    hovered: bool,
+) -> (Color32, Color32) {
+    match action {
+        Action::Close if pressed => (
+            p.danger.lerp_to_gamma(Color32::BLACK, CLOSE_PRESSED_DARKEN),
+            p.danger_text,
+        ),
         Action::Close if hovered => (p.danger, p.danger_text),
         _ if pressed => (p.pressed, p.text),
         _ if hovered => (p.field, p.text),
         _ => (Color32::TRANSPARENT, p.muted),
-    };
-    let painter = ui.painter();
-    painter.rect_filled(rect, BUTTON / 2.0, fill);
-    let glyph = Rect::from_center_size(rect.center(), vec2(icons::SIZE, icons::SIZE));
-    icons::paint_path(painter, glyph, action.path(), 1.6, color);
-    if response.has_focus() {
-        painter.circle_stroke(
-            rect.center(),
-            BUTTON / 2.0 + 2.0,
-            Stroke::new(2.0_f32, p.accent),
-        );
     }
-    response
 }
 
 /// The window's edges and corners to resize it from, and a hairline round it
@@ -260,10 +289,39 @@ pub fn edges(ui: &Ui) {
     if maximised(ui) {
         return;
     }
+    let window = ui.ctx().content_rect();
+    for (i, (direction, rect)) in grips(window).into_iter().enumerate().rev() {
+        let response = ui.interact(rect, Id::unique(("vino-window-edge", i)), Sense::drag());
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(cursor(direction));
+        }
+        if response.drag_started_by(egui::PointerButton::Primary) {
+            ui.ctx()
+                .send_viewport_cmd(ViewportCommand::BeginResize(direction));
+        }
+    }
+    let p = theme::palette(ui.ctx());
+    ui.ctx()
+        .layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            Id::unique("vino-window-outline"),
+        ))
+        .rect_stroke(
+            window,
+            0.0,
+            Stroke::new(1.0_f32, p.rule_strong),
+            StrokeKind::Inside,
+        );
+}
+
+/// The four corners, then the four edges. egui gives the pointer to the
+/// last one registered, so [`edges`] registers them in reverse and a corner
+/// wins where it overlaps an edge (pinned by
+/// `tests/window.rs::a_corner_wins_where_it_overlaps_an_edge`).
+fn grips(r: Rect) -> [(egui::ResizeDirection, Rect); 8] {
     use egui::ResizeDirection as D;
-    let r = ui.ctx().content_rect();
     let (l, t, rt, b) = (r.left(), r.top(), r.right(), r.bottom());
-    let grips = [
+    [
         (
             D::NorthWest,
             Rect::from_min_max(pos2(l, t), pos2(l + CORNER, t + CORNER)),
@@ -284,31 +342,7 @@ pub fn edges(ui: &Ui) {
         (D::South, Rect::from_min_max(pos2(l, b - EDGE), pos2(rt, b))),
         (D::West, Rect::from_min_max(pos2(l, t), pos2(l + EDGE, b))),
         (D::East, Rect::from_min_max(pos2(rt - EDGE, t), pos2(rt, b))),
-    ];
-    // Where a corner and an edge overlap, the corner: egui gives the pointer
-    // to the last one registered, so the edges go in first.
-    for (i, (direction, rect)) in grips.into_iter().enumerate().rev() {
-        let response = ui.interact(rect, Id::unique(("vino-window-edge", i)), Sense::drag());
-        if response.hovered() || response.dragged() {
-            ui.ctx().set_cursor_icon(cursor(direction));
-        }
-        if response.drag_started_by(egui::PointerButton::Primary) {
-            ui.ctx()
-                .send_viewport_cmd(ViewportCommand::BeginResize(direction));
-        }
-    }
-    let p = theme::palette(ui.ctx());
-    ui.ctx()
-        .layer_painter(egui::LayerId::new(
-            egui::Order::Foreground,
-            Id::unique("vino-window-outline"),
-        ))
-        .rect_stroke(
-            r,
-            0.0,
-            Stroke::new(1.0_f32, p.rule_strong),
-            StrokeKind::Inside,
-        );
+    ]
 }
 
 fn cursor(direction: egui::ResizeDirection) -> CursorIcon {

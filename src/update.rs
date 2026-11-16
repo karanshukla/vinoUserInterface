@@ -208,8 +208,14 @@ fn run_update(command: &[String], tag: &str) -> Status {
     }
 }
 
-/// Why a failed command stopped, cut to one line of help: the last line the
-/// vino installers mark as the failure (`✗ ...`), else its last line.
+/// The marks the vino installers start a terminal line with: `✗` a failure.
+const TERMINAL_MARKS: [char; 3] = ['✗', '!', '·'];
+/// The longest failure line shown, in characters, before an ellipsis.
+const FAILURE_LINE_MAX: usize = 160;
+
+/// Why a failed command stopped, as one line of help: the last line the vino
+/// installers mark as the failure (`✗ ...`), else its last line, without
+/// its mark (pinned by `tests::a_failure_shows_the_commands_last_words`).
 fn failure_line(stderr: &str) -> Option<String> {
     let mut lines = stderr
         .lines()
@@ -218,18 +224,26 @@ fn failure_line(stderr: &str) -> Option<String> {
         .filter(|l| !l.is_empty());
     let last = lines.clone().next()?;
     let line = lines.find(|l| l.starts_with('✗')).unwrap_or(last);
-    // Installers print "✗ Something failed": the mark is for a terminal.
-    let line = line.trim_start_matches(['✗', '!', '·']).trim();
-    let mut out: String = line.chars().take(160).collect();
-    if line.chars().count() > 160 {
+    Some(cut_to_one_line(
+        line.trim_start_matches(TERMINAL_MARKS).trim(),
+    ))
+}
+
+/// At most `FAILURE_LINE_MAX` characters, then `…` (pinned by
+/// `tests::a_failure_line_of_the_limit_is_kept_whole`,
+/// `tests::a_longer_failure_line_is_cut_with_an_ellipsis`).
+fn cut_to_one_line(line: &str) -> String {
+    let mut out: String = line.chars().take(FAILURE_LINE_MAX).collect();
+    if line.chars().count() > FAILURE_LINE_MAX {
         out.push('…');
     }
-    Some(out)
+    out
 }
 
 /// A version or tag as numbers: `v6` is `[6]`, `1.2.0` and `v1.2.0` are
 /// `[1, 2, 0]`. Anything else (a `dev` build, a pre-release suffix) is `None`,
-/// and is never offered an update.
+/// and is never offered an update (pinned by
+/// `tests::a_dev_build_or_a_tag_that_is_no_version_is_never_told_to_update`).
 pub fn version_parts(version: &str) -> Option<Vec<u64>> {
     let rest = version.strip_prefix('v').unwrap_or(version);
     rest.split('.').map(|part| part.parse().ok()).collect()
@@ -250,18 +264,28 @@ pub fn is_newer(current: &str, latest: &str) -> bool {
 
 /// The `"tag_name"` of a releases API response, if it looks like a tag. It
 /// ends up in the window and in the update command's environment, so
-/// anything but `v`, digits, letters, dots and dashes is refused.
+/// anything but `v`, digits, letters, dots and dashes is refused (pinned by
+/// `tests::only_a_plausible_tag_is_taken`).
 pub fn latest_tag(json: &str) -> Option<String> {
     let release: serde_json::Value = serde_json::from_str(json).ok()?;
     let tag = release.get("tag_name")?.as_str()?;
-    let valid = !tag.is_empty()
-        && tag.len() <= 32
+    plausible_tag(tag).then(|| tag.to_string())
+}
+
+const TAG_MAX_LEN: usize = 32;
+
+fn plausible_tag(tag: &str) -> bool {
+    !tag.is_empty()
+        && tag.len() <= TAG_MAX_LEN
         && tag.starts_with(|c: char| c == 'v' || c.is_ascii_digit())
         && tag
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
-    valid.then(|| tag.to_string())
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
 }
+
+/// curl's limits on the check: GitHub's answer is a few KB.
+const CHECK_TIMEOUT_SECS: &str = "10";
+const CHECK_MAX_BYTES: &str = "1048576";
 
 /// The newest full release's tag (GitHub's "latest": not a draft, not a
 /// pre-release). The error is a sentence for the row's help.
@@ -274,9 +298,9 @@ pub fn fetch_latest(app: App) -> Result<String, String> {
         .args([
             "-fsSL",
             "--max-time",
-            "10",
+            CHECK_TIMEOUT_SECS,
             "--max-filesize",
-            "1048576",
+            CHECK_MAX_BYTES,
             "-H",
             "Accept: application/vnd.github+json",
             &url,
@@ -307,7 +331,10 @@ mod tests {
         assert!(is_newer("1.2.0", "v1.10.0"));
         assert!(!is_newer("1.10.0", "v1.9.9"));
         assert!(is_newer("0.4.2", "v0.4.3"));
-        // A dev build, or a tag that isn't a version, is never told to update.
+    }
+
+    #[test]
+    fn a_dev_build_or_a_tag_that_is_no_version_is_never_told_to_update() {
         assert!(!is_newer("dev", "v9"));
         assert!(!is_newer("1.0.0", "nightly"));
     }
@@ -398,6 +425,20 @@ mod tests {
         );
         assert_eq!(failure_line("one\nthe end\n"), Some("the end".into()));
         assert_eq!(failure_line("\n \n"), None);
+    }
+
+    #[test]
+    fn a_failure_line_of_the_limit_is_kept_whole() {
+        let line = "x".repeat(FAILURE_LINE_MAX);
+        assert_eq!(failure_line(&line), Some(line));
+    }
+
+    #[test]
+    fn a_longer_failure_line_is_cut_with_an_ellipsis() {
+        let line = "é".repeat(FAILURE_LINE_MAX + 1);
+        let shown = failure_line(&line).unwrap();
+        assert_eq!(shown.chars().count(), FAILURE_LINE_MAX + 1);
+        assert!(shown.ends_with("é…"), "{shown}");
     }
 
     fn available(command: &[&str]) -> Updater {

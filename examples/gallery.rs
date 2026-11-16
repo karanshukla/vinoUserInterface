@@ -40,6 +40,15 @@ impl Page {
             Page::Widgets => Icon::Flask,
         }
     }
+
+    /// Pages of two columns get the room for both; Shortcuts, one list, stops
+    /// at one.
+    fn max_width(self) -> f32 {
+        match self {
+            Page::Shortcuts => widgets::CONTENT_MAX,
+            _ => widgets::WIDE_MAX,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -195,9 +204,8 @@ impl Gallery {
                 });
         }
 
-        // With the app's title bar, a wide window's page title moves up out of
-        // the scroll area into a bar of its own, with the window buttons at
-        // its end: that bar is what the window is dragged by.
+        // A wide window with the app's title bar moves the page title up into
+        // `window::bar`, which the window is dragged by.
         let bar = wide && self.app_title_bar;
         if bar {
             window::bar(
@@ -212,32 +220,10 @@ impl Gallery {
             .frame(
                 egui::Frame::NONE
                     .fill(p.bg)
-                    // No right margin: the scroll bar belongs on the window's edge.
-                    .inner_margin(egui::Margin {
-                        left: if wide {
-                            widgets::page_inset(window) as i8
-                        } else {
-                            16
-                        },
-                        right: 0,
-                        // The same 15 from title to content as in the scroll area.
-                        top: if bar {
-                            2
-                        } else if wide {
-                            20
-                        } else {
-                            12
-                        },
-                        bottom: 0,
-                    }),
+                    .inner_margin(page_margin(window, wide, bar)),
             )
             .show(ui, |ui| {
-                // Pages of two columns get the room for both; the rest stop at one.
-                let max = if self.page == Page::Shortcuts {
-                    widgets::CONTENT_MAX
-                } else {
-                    widgets::WIDE_MAX
-                };
+                let max = self.page.max_width();
                 widgets::page_scroll(ui, self.page.title(), max, |ui| {
                     if !bar {
                         ui.horizontal(|ui| self.page_title(ui));
@@ -434,7 +420,6 @@ impl Gallery {
                     widgets::chip(ui, ChipKind::Err, "Failed");
                     widgets::chip(ui, ChipKind::Neutral, "Paused");
                 });
-                // A wait nothing else shows: the spinner, beside what it waits for.
                 ui.horizontal(|ui| {
                     widgets::spinner(ui);
                     widgets::small(ui, "Connecting to the service");
@@ -492,7 +477,6 @@ fn notices_and_art(ui: &mut Ui) {
                 logo::authface(ui, 40.0);
             });
         });
-        // At 30, the size the lists draw them.
         widgets::group_section(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(12.0, 12.0);
@@ -549,6 +533,27 @@ fn main() -> eframe::Result {
     )
 }
 
+/// No right margin: the scroll bar belongs on the window's edge. The top
+/// keeps the same 15 from title to content as in the scroll area.
+fn page_margin(window: f32, wide: bool, bar: bool) -> egui::Margin {
+    egui::Margin {
+        left: if wide {
+            widgets::page_inset(window) as i8
+        } else {
+            16
+        },
+        right: 0,
+        top: if bar {
+            2
+        } else if wide {
+            20
+        } else {
+            12
+        },
+        bottom: 0,
+    }
+}
+
 #[derive(Default)]
 struct App {
     gallery: Gallery,
@@ -557,7 +562,7 @@ struct App {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // The desktop's light/dark switch may have flipped while the window was in the background.
+        // The desktop's theme may have changed while the window was in the background.
         let focused = ui.input(|input| input.focused);
         if focused && !self.focused {
             theme::follow_desktop(ui.ctx());

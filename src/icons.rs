@@ -46,9 +46,14 @@ pub enum Icon {
     Key,
     Refresh,
     Check,
+    /// A face inside scan corners: face unlock, enrolment.
     Face,
+    /// Someone's own settings: a person in a circle, set apart from
+    /// `Voice`, which is a speaker.
     User,
+    /// A head moving: liveness by motion.
     Motion,
+    /// Thresholds and other tuning.
     Sliders,
 }
 
@@ -150,21 +155,16 @@ impl Icon {
                 "M20 11a8 8 0 0 0-14.5-4.5L4 8M4 3v5h5 M4 13a8 8 0 0 0 14.5 4.5L20 16M20 21v-5h-5"
             }
             Icon::Check => "m5 12 5 5 9-10",
-            // A face inside scan corners: face unlock, enrolment.
             Icon::Face => {
                 "M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2 \
                  M9 9.5h.01M15 9.5h.01M12 10v3h-1M9 15.5a4 4 0 0 0 6 0"
             }
-            // Someone's own settings: a person in a circle, set apart from
-            // `Voice`, which is a speaker.
             Icon::User => {
                 "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6 M6.6 18.2a6.5 6.5 0 0 1 10.8 0"
             }
-            // A head moving: liveness by motion.
             Icon::Motion => {
                 "M14 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14 M11.5 10.5h.01M16.5 10.5h.01 M2 9h3M1.5 12h3M2 15h3"
             }
-            // Thresholds and other tuning.
             Icon::Sliders => {
                 "M4 6h8M16 6h4M14 4v4 M4 12h2M10 12h10M8 10v4 M4 18h10M18 18h2M16 16v4"
             }
@@ -174,11 +174,16 @@ impl Icon {
     /// Where the three dots of `More` are heavier than the rest.
     fn stroke_scale(self) -> f32 {
         match self {
-            Icon::More => 3.0 / 1.8,
+            Icon::More => 3.0 / STROKE,
             _ => 1.0,
         }
     }
 }
+
+/// The grid icon paths are drawn on, `GRID` units square.
+const GRID: f32 = 24.0;
+/// An icon's stroke, in grid units.
+const STROKE: f32 = 1.8;
 
 /// The icon in a `size` square, taking its space in the layout; hidden from
 /// screen readers, since the text beside it says what it is for.
@@ -193,14 +198,20 @@ pub fn icon(ui: &mut Ui, icon: Icon, size: f32, color: Color32) -> Response {
 
 /// The icon painted to fill `rect`.
 pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
-    paint_path(painter, rect, icon.path(), 1.8 * icon.stroke_scale(), color);
+    paint_path(
+        painter,
+        rect,
+        icon.path(),
+        STROKE * icon.stroke_scale(),
+        color,
+    );
 }
 
 /// Any path on the icons' 24-unit grid, `width` units wide: for shapes that
 /// aren't icons of their own, like the window buttons.
 pub(crate) fn paint_path(painter: &Painter, rect: Rect, path: &str, width: f32, color: Color32) {
-    let k = rect.width().min(rect.height()) / 24.0;
-    let origin = rect.center() - vec2(12.0, 12.0) * k;
+    let k = rect.width().min(rect.height()) / GRID;
+    let origin = rect.center() - vec2(GRID, GRID) / 2.0 * k;
     let width = width * k;
     let stroke = Stroke::new(width, color);
     for sub in parse(path) {
@@ -211,19 +222,13 @@ pub(crate) fn paint_path(painter: &Painter, rect: Rect, path: &str, width: f32, 
             .collect();
         match points.len() {
             0 => {}
-            // "h.01": a dot, drawn as the stroke's round cap alone.
             1 => {
                 painter.circle_filled(points[0], width / 2.0, color);
             }
             _ if sub.closed => {
                 painter.add(Shape::closed_line(points, stroke));
             }
-            _ => {
-                // Round caps: egui's strokes end square.
-                painter.circle_filled(points[0], width / 2.0, color);
-                painter.circle_filled(points[points.len() - 1], width / 2.0, color);
-                painter.add(Shape::line(points, stroke));
-            }
+            _ => crate::logo::capped(painter, points, stroke),
         }
     }
 }
@@ -350,8 +355,7 @@ impl Pen {
         if closed && points.len() >= 2 && points.last() == points.first() {
             points.pop();
         }
-        // "M12 12h0" and "h.01" are dots.
-        if points.len() == 2 && points[0].distance(points[1]) < DOT {
+        if is_dot(&points) {
             points.pop();
         }
         self.done.push(Subpath { points, closed });
@@ -361,6 +365,12 @@ impl Pen {
         self.end_subpath(false);
         self.done
     }
+}
+
+/// A line shorter than `DOT`, as "M12 12h0" or "h.01", which is drawn as
+/// one point (pinned by `tests::a_dot_is_one_point`).
+fn is_dot(points: &[Pos2]) -> bool {
+    points.len() == 2 && points[0].distance(points[1]) < DOT
 }
 
 /// How many chords a C or a Q is flattened into.
@@ -386,7 +396,8 @@ fn quadratic(from: Pos2, c: Pos2, end: Pos2, t: f32) -> Pos2 {
 }
 
 /// An SVG elliptical arc, flattened onto `into`. `radii` is rx, ry and the
-/// ellipse's tilt in degrees.
+/// ellipse's tilt in degrees. The last point is `to` exactly (pinned by
+/// `tests::an_arc_lands_exactly_where_the_path_says`).
 fn arc(
     into: &mut Vec<Pos2>,
     from: Pos2,
@@ -403,7 +414,6 @@ fn arc(
     for step in 1..steps {
         into.push(arc.point(arc.theta + arc.delta * step as f32 / steps as f32));
     }
-    // Land exactly where the path says.
     into.push(to);
 }
 
@@ -435,17 +445,11 @@ impl CentreArc {
         if rx == 0.0 || ry == 0.0 || from == to {
             return None;
         }
-        let (mut rx, mut ry) = (rx.abs(), ry.abs());
         let (sin, cos) = rotation.to_radians().sin_cos();
         let d = (from - to) / 2.0;
         let x1 = cos * d.x + sin * d.y;
         let y1 = -sin * d.x + cos * d.y;
-        // Radii too small to reach are scaled up until they do.
-        let lambda = (x1 * x1) / (rx * rx) + (y1 * y1) / (ry * ry);
-        if lambda > 1.0 {
-            rx *= lambda.sqrt();
-            ry *= lambda.sqrt();
-        }
+        let (rx, ry) = reachable_radii(rx.abs(), ry.abs(), x1, y1);
         let num = (rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1).max(0.0);
         let den = rx * rx * y1 * y1 + ry * ry * x1 * x1;
         let mut coef = if den == 0.0 { 0.0 } else { (num / den).sqrt() };
@@ -490,6 +494,18 @@ impl CentreArc {
             self.centre.x + self.cos * self.rx * ct - self.sin * self.ry * st,
             self.centre.y + self.sin * self.rx * ct + self.cos * self.ry * st,
         )
+    }
+}
+
+/// Radii too small to reach from the start to (x1, y1), in the ellipse's
+/// own axes, scaled up until they do (SVG 1.1 F.6.6; pinned by
+/// `tests::radii_too_small_to_reach_grow_until_they_do`).
+fn reachable_radii(rx: f32, ry: f32, x1: f32, y1: f32) -> (f32, f32) {
+    let lambda = (x1 * x1) / (rx * rx) + (y1 * y1) / (ry * ry);
+    if lambda > 1.0 {
+        (rx * lambda.sqrt(), ry * lambda.sqrt())
+    } else {
+        (rx, ry)
     }
 }
 
@@ -732,7 +748,11 @@ pub(crate) mod tests {
         assert!((left.delta + PI).abs() < 1e-4, "half a turn, anticlockwise");
         let right = centre_arc(from, (9.0, 9.0), (true, true), to);
         assert!((right.delta - PI).abs() < 1e-4, "and clockwise with sweep");
-        // A quarter turn's two centres, a corner each.
+    }
+
+    #[test]
+    fn a_quarter_turns_large_flag_picks_the_far_centre() {
+        use std::f32::consts::FRAC_PI_2;
         let (from, to) = (pos2(4.0, 0.0), pos2(0.0, 4.0));
         let near = centre_arc(from, (4.0, 4.0), (false, true), to);
         let far = centre_arc(from, (4.0, 4.0), (true, true), to);
@@ -769,8 +789,12 @@ pub(crate) mod tests {
         assert_eq!(chords("M12 3a9 9 0 1 0 0 18"), 8, "half a turn");
         assert_eq!(chords("M4 0a4 4 0 0 1-4 4"), 4, "a quarter");
         assert_eq!(chords("M4 0a4 4 0 0 1-.01 .2"), 2, "a sliver");
+    }
+
+    #[test]
+    fn an_arc_lands_exactly_where_the_path_says() {
         let half = &points("M12 3a9 9 0 1 0 0 18")[0];
-        assert_eq!(half[8], pos2(12.0, 21.0), "it lands where the path says");
+        assert_eq!(half.last(), Some(&pos2(12.0, 21.0)));
     }
 
     #[test]

@@ -55,10 +55,16 @@ pub fn authface(ui: &mut Ui, size: f32) -> Response {
     logo(ui, Logo::AuthFace, size)
 }
 
-/// The tile every logo and file tile sits on, and a mapping from the SVG's units: the tile
-/// fills 4 to 60 of a 64-unit box, drawn edge to edge.
+/// The tile's width in SVG units: it fills 4 to 60 of a 64-unit box.
+const TILE: f32 = 56.0;
+/// The tile's width in the Search and Whisper SVGs, whose own box is 60
+/// units from (2, 2).
+const SITE_TILE: f32 = 52.0;
+
+/// The tile every logo and file tile sits on, and a mapping from the SVG's
+/// units, drawn edge to edge.
 pub(crate) fn tile(painter: &Painter, rect: Rect) -> (f32, impl Fn(f32, f32) -> Pos2) {
-    let k = rect.width().min(rect.height()) / 56.0;
+    let k = rect.width().min(rect.height()) / TILE;
     let origin = rect.min;
     let at = move |x: f32, y: f32| origin + vec2((x - 4.0) * k, (y - 4.0) * k);
     painter.rect_filled(
@@ -84,17 +90,22 @@ pub(crate) fn capped(painter: &Painter, points: Vec<Pos2>, stroke: Stroke) {
     painter.add(Shape::line(points, stroke));
 }
 
+/// `tile`'s scale and mapping for an SVG drawn on `SITE_TILE`, stretched over
+/// the shared `TILE`.
+fn from_site_tile(k: f32, at: impl Fn(f32, f32) -> Pos2) -> (f32, impl Fn(f32, f32) -> Pos2) {
+    let s = TILE / SITE_TILE;
+    (k * s, move |x: f32, y: f32| {
+        at(4.0 + (x - 4.0) * s, 4.0 + (y - 4.0) * s)
+    })
+}
+
 pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
     let (k, at) = tile(painter, rect);
     match which {
         Logo::Search => {
-            // The SVG's own box is 60 units from (2, 2); the tile is 52 wide
-            // there, drawn here over the shared 56.
-            let s = 56.0 / 52.0;
-            let at = |x: f32, y: f32| at(4.0 + (x - 4.0) * s, 4.0 + (y - 4.0) * s);
+            let (k, at) = from_site_tile(k, at);
             let box_ =
                 |x: f32, y: f32, w: f32, h: f32| Rect::from_min_max(at(x, y), at(x + w, y + h));
-            let k = k * s;
             painter.circle_stroke(at(28.0, 28.0), 12.0 * k, Stroke::new(5.0 * k, WHITE));
             painter.rect_filled(
                 box_(22.0, 22.0, 12.0, 4.0),
@@ -109,9 +120,7 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
             );
         }
         Logo::Whisper => {
-            let s = 56.0 / 52.0;
-            let at = |x: f32, y: f32| at(4.0 + (x - 4.0) * s, 4.0 + (y - 4.0) * s);
-            let k = k * s;
+            let (k, at) = from_site_tile(k, at);
             for sub in icons::parse(WHISPER_BUBBLE) {
                 let points: Vec<Pos2> = sub.points.iter().map(|p| at(p.x, p.y)).collect();
                 painter.add(Shape::closed_line(points, Stroke::new(4.0 * k, WHITE)));
@@ -145,9 +154,8 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
             }
         }
         Logo::AuthFace => {
-            // The IR camera module, in the grey the other logos keep for what
-            // stands behind the mark, round a white lens ring and the green
-            // emitter dot beside it.
+            // The IR camera module in the grey kept for what stands behind
+            // the mark, a white lens ring, and the green emitter dot.
             painter.rect_stroke(
                 Rect::from_min_max(at(12.5, 20.5), at(51.5, 43.5)),
                 6.5 * k,

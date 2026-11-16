@@ -23,7 +23,6 @@ const PINK: Color32 = Color32::from_rgb(0xf0, 0x7f, 0xc4);
 const CYAN: Color32 = Color32::from_rgb(0x58, 0xd0, 0xf2);
 const GREY: Color32 = Color32::from_rgb(0xa0, 0xa4, 0xac);
 
-// The marks, on the tile's 56-unit grid from its top-left corner.
 const PAGE: &str = "M34 10H18a4 4 0 0 0-4 4v28a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4V18z";
 /// Drawn without round ends: a cap at the page's corner would poke out of it.
 const FOLD: &str = "M34 10v8h8";
@@ -158,6 +157,24 @@ pub fn file(ui: &mut Ui, format: Format, size: f32) -> Response {
     response
 }
 
+/// "PDF" on a band across the page and past its edges, as a PDF's icon has
+/// it.
+fn pdf_band(painter: &Painter, origin: Pos2, k: f32, accent: Color32) {
+    let at = |x: f32, y: f32| origin + egui::vec2(x, y) * k;
+    painter.rect_filled(
+        Rect::from_min_max(at(8.0, 25.0), at(48.0, 40.0)),
+        3.0 * k,
+        accent,
+    );
+    painter.text(
+        at(28.0, 32.5),
+        Align2::CENTER_CENTER,
+        "PDF",
+        FontId::new(13.0 * k, theme::bold()),
+        WHITE,
+    );
+}
+
 pub fn paint(painter: &Painter, rect: Rect, format: Format) {
     let (k, _) = logo::tile(painter, rect);
     let origin = rect.min;
@@ -167,20 +184,7 @@ pub fn paint(painter: &Painter, rect: Rect, format: Format) {
         Format::Pdf => {
             draw(PAGE, WHITE);
             stroke(painter, origin, k, FOLD, WHITE, false);
-            // Across the page and past its edges, as a PDF's icon has it.
-            let at = |x: f32, y: f32| origin + egui::vec2(x, y) * k;
-            painter.rect_filled(
-                Rect::from_min_max(at(8.0, 25.0), at(48.0, 40.0)),
-                3.0 * k,
-                accent,
-            );
-            painter.text(
-                at(28.0, 32.5),
-                Align2::CENTER_CENTER,
-                "PDF",
-                FontId::new(13.0 * k, theme::bold()),
-                WHITE,
-            );
+            pdf_band(painter, origin, k, accent);
         }
         Format::Writing | Format::Plain => {
             draw(PAGE, WHITE);
@@ -209,7 +213,7 @@ pub fn paint(painter: &Painter, rect: Rect, format: Format) {
             draw(FRAME, WHITE);
             draw(CAPTION_LINES, accent);
         }
-        // The frame goes on last, over the ends of the accent.
+        // The frame last, over the ends of the accent.
         Format::Sheet => {
             draw(GRID, accent);
             draw(FRAME, WHITE);
@@ -278,7 +282,10 @@ mod tests {
         }
         let mark = contrast(WHITE, INK);
         assert!(mark >= 4.5, "the white mark is {mark:.2}:1 on ink");
-        // PDF writes on its band.
+    }
+
+    #[test]
+    fn the_pdf_text_has_enough_contrast_on_its_band() {
         let band = contrast(WHITE, Format::Pdf.accent());
         assert!(band >= 3.0, "PDF on its band is {band:.2}:1");
     }

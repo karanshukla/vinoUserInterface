@@ -11,6 +11,10 @@ use egui_kittest::kittest::Queryable;
 use gallery::{Gallery, Page};
 use vino_user_interface::{egui, theme, window};
 
+/// A frame a sixtieth apart, as a real one is: at kittest's default 0.25 s
+/// two clicks are never a double click.
+const FRAME_STEP: f32 = 1.0 / 60.0;
+
 struct State {
     gallery: Gallery,
     styled: bool,
@@ -21,9 +25,7 @@ fn harness(width: f32, height: f32, maximised: bool) -> Harness<'static, State> 
     gallery.app_title_bar = true;
     let mut h = Harness::builder()
         .with_size((width, height))
-        // A frame a sixtieth apart, as a real one is: at the default 0.25 s two
-        // clicks are never a double click.
-        .with_step_dt(1.0 / 60.0)
+        .with_step_dt(FRAME_STEP)
         .build_ui_state(
             |ui, state: &mut State| {
                 if !state.styled {
@@ -136,14 +138,22 @@ fn a_maximised_window_offers_restore_and_has_no_edges() {
     );
 }
 
+fn empty_bar(h: &Harness<'_, State>) -> Pos2 {
+    centre(h, "Minimise") - vec2(200.0, 0.0)
+}
+
 #[test]
-fn the_bar_moves_and_maximises_the_window() {
+fn dragging_the_bar_moves_the_window() {
     let mut h = harness(960.0, 640.0, false);
-    // Empty bar, left of the buttons.
-    let bar = centre(&h, "Minimise") - vec2(200.0, 0.0);
+    let bar = empty_bar(&h);
     let sent = drag(&mut h, bar);
     assert!(sent.contains(&ViewportCommand::StartDrag), "{sent:?}");
+}
+
+#[test]
+fn a_double_click_on_the_bar_maximises_the_window() {
     let mut h = harness(960.0, 640.0, false);
+    let bar = empty_bar(&h);
     let sent = frames(
         &mut h,
         vec![
@@ -155,28 +165,50 @@ fn the_bar_moves_and_maximises_the_window() {
         ],
     );
     assert!(sent.contains(&ViewportCommand::Maximized(true)), "{sent:?}");
-    // The sidebar's brand is a handle too.
+}
+
+#[test]
+fn the_sidebars_brand_moves_the_window_too() {
+    let mut h = harness(960.0, 640.0, false);
     let sent = drag(&mut h, pos2(100.0, 20.0));
     assert!(sent.contains(&ViewportCommand::StartDrag), "{sent:?}");
 }
 
-#[test]
-fn the_edges_resize_the_window() {
-    let mut h = harness(960.0, 640.0, false);
-    for (at, direction) in [
-        (pos2(958.0, 320.0), ResizeDirection::East),
-        (pos2(2.0, 320.0), ResizeDirection::West),
-        (pos2(480.0, 638.0), ResizeDirection::South),
-        (pos2(480.0, 1.0), ResizeDirection::North),
-        (pos2(957.0, 637.0), ResizeDirection::SouthEast),
-        (pos2(3.0, 3.0), ResizeDirection::NorthWest),
-    ] {
-        let sent = drag(&mut h, at);
+fn assert_resizes(h: &mut Harness<'_, State>, grips: &[(Pos2, ResizeDirection)]) {
+    for &(at, direction) in grips {
+        let sent = drag(h, at);
         assert!(
             sent.contains(&ViewportCommand::BeginResize(direction)),
             "{direction:?} at {at:?}: {sent:?}"
         );
     }
+}
+
+#[test]
+fn the_edges_resize_the_window() {
+    let mut h = harness(960.0, 640.0, false);
+    assert_resizes(
+        &mut h,
+        &[
+            (pos2(958.0, 320.0), ResizeDirection::East),
+            (pos2(2.0, 320.0), ResizeDirection::West),
+            (pos2(480.0, 638.0), ResizeDirection::South),
+            (pos2(480.0, 1.0), ResizeDirection::North),
+        ],
+    );
+}
+
+/// Both points are inside an edge's strip as well as a corner's grip.
+#[test]
+fn a_corner_wins_where_it_overlaps_an_edge() {
+    let mut h = harness(960.0, 640.0, false);
+    assert_resizes(
+        &mut h,
+        &[
+            (pos2(957.0, 637.0), ResizeDirection::SouthEast),
+            (pos2(3.0, 3.0), ResizeDirection::NorthWest),
+        ],
+    );
 }
 
 #[test]
@@ -234,8 +266,6 @@ fn a_long_title_stops_short_of_the_buttons() {
             },
         );
     });
-    // The buttons keep their place in the corner, inside the window, however
-    // long the title is; the title is cut off before them.
     let close = h.get_by_label("Close").rect();
     let window = h.ctx.content_rect();
     assert!(
@@ -249,8 +279,8 @@ fn a_long_title_stops_short_of_the_buttons() {
     assert!(title.left() < beside.left(), "{title:?}");
 }
 
-#[test]
-fn corner_puts_the_buttons_in_the_window_corner() {
+/// A header with `window::corner` in it, and the room `corner` asked for.
+fn header_with_corner() -> (Harness<'static>, f32) {
     let room = std::rc::Rc::new(std::cell::Cell::new(0.0));
     let kept = room.clone();
     let h = plain(600.0, move |ui| {
@@ -259,13 +289,23 @@ fn corner_puts_the_buttons_in_the_window_corner() {
             ui.label("Header");
         });
     });
+    (h, room.get())
+}
+
+#[test]
+fn corner_puts_the_buttons_in_the_window_corner() {
+    let (h, room) = header_with_corner();
     let close = h.get_by_label("Close").rect();
     assert!(
         (close.right() - (600.0 - window::BAR_GAP)).abs() < 0.5,
         "{close:?}"
     );
     assert!((close.top() - window::BAR_GAP).abs() < 0.5, "{close:?}");
-    assert_eq!(room.get(), window::BAR_GAP + window::controls_width());
-    // Nothing else moved for them: the header's label is where it would be.
+    assert_eq!(room, window::BAR_GAP + window::controls_width());
+}
+
+#[test]
+fn corner_takes_no_room_in_the_headers_layout() {
+    let (h, _) = header_with_corner();
     assert!(h.get_by_label("Header").rect().top() < 20.0);
 }

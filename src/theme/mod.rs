@@ -73,7 +73,8 @@ const fn rgb(hex: u32) -> Color32 {
     Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
 }
 
-// Premultiplied, as Color32 stores it; the hex is the colour at full opacity.
+/// `hex` at full opacity, faded to `alpha` and stored premultiplied, as
+/// `Color32` keeps it (pinned by `tests::rgba_premultiplies_the_full_opacity_hex`).
 const fn rgba(hex: u32, alpha: u8) -> Color32 {
     const fn channel(c: u32, alpha: u8) -> u8 {
         (c * alpha as u32 / 255) as u8
@@ -190,6 +191,9 @@ pub fn mono() -> FontFamily {
     FontFamily::Monospace
 }
 
+/// Each family's font first, then Inter Regular, then egui's stock fonts for
+/// the glyphs the Latin subsets lack (pinned by
+/// `tests::every_family_is_installed_with_the_stock_fonts_behind_it`).
 fn fonts() -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     for (name, bytes) in [
@@ -218,20 +222,12 @@ fn fonts() -> FontDefinitions {
             .font_data
             .insert(name.to_owned(), Arc::new(FontData::from_static(bytes)));
     }
-    // The stock fonts stay behind ours for the glyphs the Latin subsets lack.
     let stock: Vec<String> = fonts
         .families
         .get(&FontFamily::Proportional)
         .cloned()
         .unwrap_or_default();
-    let family = |first: &str| {
-        let mut list = vec![first.to_owned()];
-        if first != "Inter-Regular" {
-            list.push("Inter-Regular".to_owned());
-        }
-        list.extend(stock.iter().cloned());
-        list
-    };
+    let family = |first: &str| fallback_chain(first, &stock);
     fonts
         .families
         .insert(FontFamily::Proportional, family("Inter-Regular"));
@@ -244,18 +240,24 @@ fn fonts() -> FontDefinitions {
     fonts
 }
 
+fn fallback_chain(first: &str, stock: &[String]) -> Vec<String> {
+    let mut list = vec![first.to_owned()];
+    if first != "Inter-Regular" {
+        list.push("Inter-Regular".to_owned());
+    }
+    list.extend(stock.iter().cloned());
+    list
+}
+
+/// A pressed control's, and a keyboard focus's, accent ring.
+const FOCUS_RING: f32 = 2.0;
+const CONTROL_CORNER: CornerRadius = CornerRadius::same(8);
+const POPUP_CORNER: CornerRadius = CornerRadius::same(10);
+
 fn visuals(p: &Palette, base: Visuals) -> Visuals {
-    let corner = CornerRadius::same(8);
     let mut v = base;
     v.panel_fill = p.bg;
-    // Menus and popups: a field-coloured surface with a strong rule, and the
-    // only shadow anywhere.
-    v.window_fill = p.field;
-    v.window_stroke = Stroke::new(1.0_f32, p.rule_strong);
-    v.window_shadow = p.shadow();
-    v.popup_shadow = p.shadow();
-    v.menu_corner_radius = CornerRadius::same(10);
-    v.window_corner_radius = CornerRadius::same(10);
+    popups(&mut v, p);
     v.extreme_bg_color = p.field;
     v.faint_bg_color = p.field;
     v.code_bg_color = p.field;
@@ -265,38 +267,49 @@ fn visuals(p: &Palette, base: Visuals) -> Visuals {
     v.selection.bg_fill = p.tint;
     v.selection.stroke = Stroke::new(1.0_f32, p.accent);
     v.text_cursor.stroke.color = p.text;
+    widget_states(&mut v.widgets, p);
+    v
+}
 
-    v.widgets.noninteractive.bg_fill = p.bg;
-    v.widgets.noninteractive.weak_bg_fill = p.surface;
-    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, p.rule);
-    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, p.text);
-    v.widgets.noninteractive.corner_radius = corner;
-    for widget in [
-        &mut v.widgets.inactive,
-        &mut v.widgets.hovered,
-        &mut v.widgets.active,
-        &mut v.widgets.open,
-    ] {
-        widget.corner_radius = corner;
+/// Menus and popups: a field-coloured surface with a strong rule, and the
+/// only shadow anywhere.
+fn popups(v: &mut Visuals, p: &Palette) {
+    v.window_fill = p.field;
+    v.window_stroke = Stroke::new(1.0_f32, p.rule_strong);
+    v.window_shadow = p.shadow();
+    v.popup_shadow = p.shadow();
+    v.menu_corner_radius = POPUP_CORNER;
+    v.window_corner_radius = POPUP_CORNER;
+}
+
+/// Outlines in `edge` at rest and hovered, so a field or an unchecked box
+/// shows against the page (pinned by
+/// `tests::control_edges_have_enough_contrast`); `FOCUS_RING` in the accent
+/// when pressed or focused.
+fn widget_states(w: &mut egui::style::Widgets, p: &Palette) {
+    w.noninteractive.bg_fill = p.bg;
+    w.noninteractive.weak_bg_fill = p.surface;
+    w.noninteractive.bg_stroke = Stroke::new(1.0_f32, p.rule);
+    w.noninteractive.fg_stroke = Stroke::new(1.0_f32, p.text);
+    w.noninteractive.corner_radius = CONTROL_CORNER;
+    for widget in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
+        widget.corner_radius = CONTROL_CORNER;
         widget.fg_stroke = Stroke::new(1.0_f32, p.text);
     }
-    // A field's outline, and an unchecked box's, has to show against the page.
-    v.widgets.inactive.bg_fill = p.field;
-    v.widgets.inactive.weak_bg_fill = p.field;
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, p.edge);
-    v.widgets.hovered.bg_fill = p.hovered();
-    v.widgets.hovered.weak_bg_fill = p.hovered();
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, p.edge);
-    v.widgets.hovered.expansion = 0.0;
-    // Pressed, and focused from the keyboard: a 2 px accent ring.
-    v.widgets.active.bg_fill = p.pressed;
-    v.widgets.active.weak_bg_fill = p.pressed;
-    v.widgets.active.bg_stroke = Stroke::new(2.0_f32, p.accent);
-    v.widgets.active.expansion = 0.0;
-    v.widgets.open.bg_fill = p.pressed;
-    v.widgets.open.weak_bg_fill = p.pressed;
-    v.widgets.open.bg_stroke = Stroke::new(1.0_f32, p.accent);
-    v
+    w.inactive.bg_fill = p.field;
+    w.inactive.weak_bg_fill = p.field;
+    w.inactive.bg_stroke = Stroke::new(1.0_f32, p.edge);
+    w.hovered.bg_fill = p.hovered();
+    w.hovered.weak_bg_fill = p.hovered();
+    w.hovered.bg_stroke = Stroke::new(1.0_f32, p.edge);
+    w.hovered.expansion = 0.0;
+    w.active.bg_fill = p.pressed;
+    w.active.weak_bg_fill = p.pressed;
+    w.active.bg_stroke = Stroke::new(FOCUS_RING, p.accent);
+    w.active.expansion = 0.0;
+    w.open.bg_fill = p.pressed;
+    w.open.weak_bg_fill = p.pressed;
+    w.open.bg_stroke = Stroke::new(1.0_f32, p.accent);
 }
 
 /// A solid scroll bar paints its handle in `bg_fill` on an `extreme_bg_color`
@@ -425,21 +438,29 @@ pub(crate) mod tests {
         assert!((contrast(rgb(0x777777), Color32::WHITE) - 4.48).abs() < 0.01);
     }
 
-    /// 4.5:1 for text and 3:1 for the edges of controls (WCAG 1.4.3 and
-    /// 1.4.11), in the visuals as installed, both themes, on the page, on a
-    /// surface and on a field.
-    #[test]
-    fn text_and_control_edges_have_enough_contrast() {
+    /// The palette and the visuals as `apply` installs them, for each theme.
+    fn installed() -> Vec<(Theme, &'static Palette, egui::Style)> {
         let ctx = egui::Context::default();
         apply(&ctx);
-        for (theme, p) in [(Theme::Dark, &DARK), (Theme::Light, &LIGHT)] {
-            let style = ctx.style_of(theme);
+        [(Theme::Dark, &DARK), (Theme::Light, &LIGHT)]
+            .into_iter()
+            .map(|(theme, p)| (theme, p, (*ctx.style_of(theme)).clone()))
+            .collect()
+    }
+
+    /// The page, a surface and a field.
+    fn plain_grounds(p: &Palette) -> [(&'static str, Color32); 3] {
+        [("page", p.bg), ("surface", p.surface), ("field", p.field)]
+    }
+
+    /// 4.5:1 for text (WCAG 1.4.3) on the page, a surface, a field and the
+    /// three tints.
+    #[test]
+    fn text_has_enough_contrast() {
+        for (theme, p, style) in installed() {
             let v = &style.visuals;
             let w = &v.widgets;
-            let grounds = [
-                ("page", p.bg),
-                ("surface", p.surface),
-                ("field", p.field),
+            let tints = [
                 ("tint", flatten(p.tint, p.surface)),
                 ("warn tint", flatten(p.warn_tint, p.surface)),
                 ("error tint", flatten(p.error_tint, p.surface)),
@@ -453,11 +474,17 @@ pub(crate) mod tests {
                 ("button text", w.inactive.fg_stroke.color),
                 ("noninteractive text", w.noninteractive.fg_stroke.color),
             ] {
-                for (on, bg) in grounds {
+                for (on, bg) in plain_grounds(p).into_iter().chain(tints) {
                     let ratio = contrast(fg, bg);
                     assert!(ratio >= 4.5, "{theme:?}: {what} on {on} is {ratio:.2}:1");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn primary_and_destructive_button_text_has_enough_contrast() {
+        for (theme, p, _) in installed() {
             let primary = contrast(p.primary_text, p.primary_fill);
             assert!(
                 primary >= 4.5,
@@ -468,6 +495,16 @@ pub(crate) mod tests {
                 destructive >= 4.5,
                 "{theme:?}: destructive button text is {destructive:.2}:1"
             );
+        }
+    }
+
+    /// 3:1 for the edges that make a control findable (WCAG 1.4.11), on the
+    /// page, a surface and a field.
+    #[test]
+    fn control_edges_have_enough_contrast() {
+        for (theme, p, style) in installed() {
+            let v = &style.visuals;
+            let w = &v.widgets;
             for (what, edge) in [
                 ("checkbox and field outline", w.inactive.bg_stroke.color),
                 ("checkbox box, rail, scroll handle", w.inactive.bg_fill),
@@ -476,17 +513,32 @@ pub(crate) mod tests {
                 ("text selection outline", v.selection.stroke.color),
                 ("switch on", p.on),
             ] {
-                for (on, bg) in [("page", p.bg), ("surface", p.surface), ("field", p.field)] {
+                for (on, bg) in plain_grounds(p) {
                     let ratio = contrast(edge, bg);
                     assert!(ratio >= 3.0, "{theme:?}: {what} on {on} is {ratio:.2}:1");
                 }
             }
-            // The tick inside a checkbox, on the box's fill, and a switch's knob.
+        }
+    }
+
+    #[test]
+    fn a_checkbox_tick_and_a_switch_knob_have_enough_contrast() {
+        for (theme, p, style) in installed() {
+            let w = &style.visuals.widgets;
             let tick = contrast(w.inactive.fg_stroke.color, w.inactive.bg_fill);
             assert!(tick >= 3.0, "{theme:?}: checkbox tick is {tick:.2}:1");
             let knob = contrast(p.switch_knob, p.on);
             assert!(knob >= 3.0, "{theme:?}: switch knob is {knob:.2}:1");
         }
+    }
+
+    #[test]
+    fn rgba_premultiplies_the_full_opacity_hex() {
+        assert_eq!(
+            rgba(0xff8000, 128),
+            Color32::from_rgba_premultiplied(128, 64, 0, 128)
+        );
+        assert_eq!(rgba(0x4cc47a, 255), rgb(0x4cc47a));
     }
 
     #[test]

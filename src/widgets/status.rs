@@ -134,11 +134,8 @@ pub fn keycap(ui: &mut Ui, text: &str) -> Response {
     response
 }
 
-/// A shortcut as key caps: "Meta+Alt+C" is three caps with pluses between.
-/// Read as the whole trigger.
-pub fn keys(ui: &mut Ui, trigger: &str) -> Response {
-    let p = palette(ui);
-    let keys: Vec<&str> = trigger.split('+').map(str::trim).collect();
+/// Sized up front and laid out left to right, as a segmented control is.
+fn keys_width(ui: &Ui, keys: &[&str]) -> f32 {
     let measure = |text: &str, font: FontId| {
         ui.painter()
             .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER)
@@ -146,12 +143,18 @@ pub fn keys(ui: &mut Ui, trigger: &str) -> Response {
             .x
     };
     let plus = measure("+", FontId::proportional(12.5));
-    let total = keys
-        .iter()
+    keys.iter()
         .map(|key| measure(key, FontId::new(12.5, theme::semibold())) + 16.0)
         .sum::<f32>()
-        + keys.len().saturating_sub(1) as f32 * (plus + 8.0);
-    // Sized up front and left to right, as a segmented control is.
+        + keys.len().saturating_sub(1) as f32 * (plus + 8.0)
+}
+
+/// A shortcut as key caps: "Meta+Alt+C" is three caps with pluses between.
+/// Read as the whole trigger.
+pub fn keys(ui: &mut Ui, trigger: &str) -> Response {
+    let p = palette(ui);
+    let keys: Vec<&str> = trigger.split('+').map(str::trim).collect();
+    let total = keys_width(ui, &keys);
     let response = ui
         .allocate_ui_with_layout(
             vec2(total, 24.0),

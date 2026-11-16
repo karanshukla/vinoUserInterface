@@ -88,6 +88,14 @@ whole file for one line with no key (`=5`) or an unclosed `[group`, where
 `ini_entries` skips the line and reads the rest
 (`a_line_that_is_no_entry_is_skipped_and_the_rest_is_read`).
 
+## Comments
+
+A comment is the last resort: extract a function, name a constant, or pin a
+rule with a test pair first, and cite the test from the code it governs as
+``(pinned by `tests::name`)``. See [comment-style.md](comment-style.md);
+`tests/doc_links.rs` (CI job Doc Links) fails on a citation with no such
+`#[test]`.
+
 ## The gate
 
 What CI runs (`.github/workflows/ci.yml`):
@@ -95,7 +103,7 @@ What CI runs (`.github/workflows/ci.yml`):
 ```sh
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+cargo test --locked                                                        # includes --test doc_links
 cargo clippy --locked --no-default-features --all-targets -- -D warnings   # what the trays build
 cargo test --locked --no-default-features --lib
 cargo publish --dry-run --locked
