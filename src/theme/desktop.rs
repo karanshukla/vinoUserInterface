@@ -388,6 +388,50 @@ mod tests {
         assert_eq!(ini_value(file, "[General]", "missing"), None);
     }
 
+    #[test]
+    fn a_group_is_its_whole_name_as_written() {
+        let file = "[General][Sub]\nfont=1\n[general]\nfont=2\n[General]\nfont=3\n";
+        assert_eq!(ini_value(file, "[General]", "font"), Some("3".into()));
+        assert_eq!(ini_value(file, "[General][Sub]", "font"), Some("1".into()));
+        assert_eq!(ini_value(file, "[General]", "Font"), None, "keys too");
+        assert_eq!(
+            ini_value("font=1\n[General]\n", "[General]", "font"),
+            None,
+            "a key before any group is in none"
+        );
+        assert_eq!(
+            ini_value(
+                "[General]\nfont=1\n[Other]\n[General]\ndpi=2\n",
+                "[General]",
+                "dpi"
+            ),
+            Some("2".into()),
+            "a group written twice is one group"
+        );
+    }
+
+    #[test]
+    fn a_value_is_everything_after_the_first_equals() {
+        let file = "[General]\nfont=Noto Sans;10 #x\nmenu = a=b:c \nempty=\nx:y=1\n";
+        assert_eq!(
+            ini_value(file, "[General]", "font"),
+            Some("Noto Sans;10 #x".into()),
+            "; and # are part of a value"
+        );
+        assert_eq!(ini_value(file, "[General]", "menu"), Some("a=b:c".into()));
+        assert_eq!(ini_value(file, "[General]", "empty"), Some(String::new()));
+        assert_eq!(ini_value(file, "[General]", "x:y"), Some("1".into()));
+        assert_eq!(ini_value(file, "[General]", "x"), None);
+    }
+
+    #[test]
+    fn a_line_that_is_no_entry_is_skipped_and_the_rest_is_read() {
+        let file = "[General]\nno entry\n=5\n# note\nfont=1\n[unclosed\nfont=2\n[General]\ndpi=3\n";
+        assert_eq!(ini_value(file, "[General]", "font"), Some("1".into()));
+        assert_eq!(ini_value(file, "[General]", "dpi"), Some("3".into()));
+        assert_eq!(ini_value(file, "[General]", "no entry"), None);
+    }
+
     const KDEGLOBALS: &str = "\
 [Colors:Button]
 BackgroundNormal=1,1,1

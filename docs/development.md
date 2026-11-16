@@ -24,6 +24,7 @@ here changes five windows.
 | `SIDEBAR_FROM` and `TWO_COLUMNS_FROM` leave a row exactly `NARROW` wide | `the_sidebar_breakpoint_leaves_a_row_exactly_narrow`, `columns_split_only_where_both_keep_wide_rows` |
 | A stacked row keeps its controls in the order they have beside the label | `a_stacked_row_keeps_the_order_it_has_beside_the_label` |
 | A Plasma config key is read from its own group only | `theme::desktop::tests::a_key_is_read_from_its_own_group_only` |
+| A Plasma config line that is no entry is skipped, and the rest of the file is still read | `theme::desktop::tests::a_line_that_is_no_entry_is_skipped_and_the_rest_is_read` |
 | An update tag is `v`, digits, letters, dots and dashes, or it is refused | `update::tests::only_a_plausible_tag_is_taken` |
 | The app's own title bar buttons, drag area and resize edges | `tests/window.rs` |
 
@@ -78,9 +79,14 @@ The files under `widgets/` and `theme/` are private. `widgets::Button` and
 `theme::follow_desktop` are still the paths: each `mod.rs` re-exports what its
 files hold.
 
-One runtime dependency, egui, and that is deliberate
-([SECURITY.md](../SECURITY.md)). The JSON, version and INI reading here is a
-few lines each, written by hand so the trays link nothing for it.
+Three runtime dependencies, and few on purpose
+([SECURITY.md](../SECURITY.md)): egui and svgtypes (the icons' path data)
+behind the `egui` feature, and serde_json (GitHub's release JSON), which the
+trays link too. The version and INI reading here is a few lines each, written
+by hand. configparser 3.3.0 was tried for the INI (2026-11-15): it refuses a
+whole file for one line with no key (`=5`) or an unclosed `[group`, where
+`ini_entries` skips the line and reads the rest
+(`a_line_that_is_no_entry_is_skipped_and_the_rest_is_read`).
 
 ## The gate
 

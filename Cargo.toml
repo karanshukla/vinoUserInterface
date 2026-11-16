@@ -15,12 +15,16 @@ include = ["/src", "/assets/fonts", "/README.md", "/LICENSE"]
 [features]
 default = ["egui"]
 # Everything but `family` and `tray`. The trays turn it off: they link no egui.
-egui = ["dep:egui"]
+egui = ["dep:egui", "dep:svgtypes"]
 
-# Only egui: the apps bring eframe. default_fonts stays on for the glyphs the
-# bundled Latin subsets lack.
+# The apps bring eframe. default_fonts stays on for the glyphs the bundled
+# Latin subsets lack.
 [dependencies]
 egui = { version = "0.37", default-features = false, features = ["default_fonts"], optional = true }
+# Reads GitHub's answer in update.rs, so the trays link it too.
+serde_json = "1"
+# Reads the icons' SVG path data. With egui only: the trays draw no paths.
+svgtypes = { version = "0.16", optional = true }
 
 [dev-dependencies]
 # wgpu and snapshot render tests/screenshots.rs, the README's pictures.
@@ -29,6 +33,9 @@ egui_kittest = { version = "0.37", default-features = false, features = ["wgpu",
 # Joins two renders into the side-by-side picture.
 image = { version = "0.25", default-features = false, features = ["png"] }
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
+# The reference icons::parse is tested against. Already in egui's own tree
+# (epaint draws with it), so it adds no crate; tests only, never linked.
+kurbo = "0.13"
 
 [[test]]
 name = "a11y"
