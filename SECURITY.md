@@ -1,8 +1,15 @@
 # Security
 
-vino UI is a theme and widget library. It makes no network calls and writes
-nothing. To follow the desktop's light/dark, reduced-motion and text-size
-settings it reads, as the user running the app:
+vino UI is a theme and widget library. It writes nothing, and it goes online
+in one case only: when the user asks an app to check for updates, it runs
+`curl` for one anonymous GET to GitHub's releases API
+(`api.github.com/repos/<owner>/<repo>/releases/latest`). Nothing is fetched
+before that. If the user then chooses to install, it runs the update command
+the app supplied, with `VINO_UPDATE_TAG` set to the release's tag; the library
+downloads and installs nothing itself.
+
+To follow the desktop's light/dark, reduced-motion and text-size settings it
+reads, as the user running the app:
 
 - the portal's Settings over D-Bus, by running `busctl --user --timeout=1`,
   and `gsettings` when no portal answers (both found on `PATH`);
