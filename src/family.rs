@@ -100,10 +100,21 @@ impl App {
     }
 }
 
+/// An `http(s)://` URL with no spaces or control characters, so `xdg-open`
+/// can't take it as a flag, a local file or a second argument.
+fn is_valid_http_url(url: &str) -> bool {
+    (url.starts_with("https://") || url.starts_with("http://"))
+        && url.bytes().all(|b| b > 0x20 && b != 0x7f)
+}
+
 /// Opens `url` in the default browser with `xdg-open`, which goes through
 /// the OpenURI portal inside a Flatpak. Returns once it has started; a
-/// thread reaps it so it doesn't linger as a zombie.
+/// thread reaps it so it doesn't linger as a zombie. Anything but an
+/// `http(s)://` URL is refused with `InvalidInput`.
 pub fn open(url: &str) -> io::Result<()> {
+    if !is_valid_http_url(url) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid URL"));
+    }
     let mut child = Command::new("xdg-open")
         .arg(url)
         .stdin(Stdio::null())
@@ -116,6 +127,28 @@ pub fn open(url: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_rejects_non_http_or_control_char_urls() {
+        assert!(is_valid_http_url(
+            "https://github.com/karanshukla/vinoPilot"
+        ));
+        assert!(is_valid_http_url("http://example.com/a"));
+        for bad in [
+            "",
+            "--help",
+            "-v",
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "https://example.com/ space",
+            "https://example.com/\nnewline",
+            "https://example.com/\x7fdel",
+        ] {
+            assert!(!is_valid_http_url(bad), "{bad}");
+            let err = open(bad).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput, "{bad}");
+        }
+    }
 
     #[test]
     fn every_app_has_its_own_name_and_page_on_the_site() {

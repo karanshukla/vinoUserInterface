@@ -303,6 +303,12 @@ pub fn fetch_latest(app: App) -> Result<String, String> {
             CHECK_MAX_BYTES,
             "-H",
             "Accept: application/vnd.github+json",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--tlsv1.2",
+            "--",
             &url,
         ])
         .stdin(Stdio::null())
