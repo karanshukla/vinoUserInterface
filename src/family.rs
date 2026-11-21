@@ -100,6 +100,8 @@ impl App {
     }
 }
 
+/// An `http(s)://` URL with no spaces or control characters, so `xdg-open`
+/// can't take it as a flag, a local file or a second argument.
 fn is_valid_http_url(url: &str) -> bool {
     (url.starts_with("https://") || url.starts_with("http://"))
         && url.bytes().all(|b| b > 0x20 && b != 0x7f)
@@ -107,7 +109,8 @@ fn is_valid_http_url(url: &str) -> bool {
 
 /// Opens `url` in the default browser with `xdg-open`, which goes through
 /// the OpenURI portal inside a Flatpak. Returns once it has started; a
-/// thread reaps it so it doesn't linger as a zombie.
+/// thread reaps it so it doesn't linger as a zombie. Anything but an
+/// `http(s)://` URL is refused with `InvalidInput`.
 pub fn open(url: &str) -> io::Result<()> {
     if !is_valid_http_url(url) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid URL"));
