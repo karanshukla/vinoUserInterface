@@ -55,14 +55,14 @@ impl App {
     /// stop.
     pub fn blurb(self) -> &'static str {
         match self {
-            App::Pilot => "One app to install and update the rest",
+            App::Pilot => "Install and update vinoPilot apps",
             App::Whisper => "Live captions and voice typing",
             App::AuthFace => "Unlock with your face",
-            App::OpenEffects => "Look better on video calls",
-            App::Pop => "AI actions on any text you select",
+            App::OpenEffects => "Webcam effects for video calls",
+            App::Pop => "AI actions for selected text",
             App::Speak => "Natural-sounding text-to-speech",
-            App::Search => "Find files by what they're about",
-            App::Watch => "See what your NPU is doing",
+            App::Search => "Search local files by meaning",
+            App::Watch => "Monitor NPU usage and activity",
         }
     }
 

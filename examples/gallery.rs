@@ -264,20 +264,20 @@ impl Gallery {
         widgets::group_label(ui, "What to index");
         widgets::group(ui, |ui| {
             Row::new("Images")
-                .help("By what's in them, not just the name.")
+                .help("Index image contents as well as file names.")
                 .show(ui, |ui, _| {
                     widgets::switch(ui, &mut self.images, "Images");
                 });
             Row::new("Documents")
-                .help("PDFs, Office files and plain text.")
+                .help("PDFs, Office files, and plain text.")
                 .show(ui, |ui, _| {
                     widgets::switch(ui, &mut self.documents, "Documents");
                 });
             Row::new("Folder").show(ui, |ui, named| {
                 named(ui.add(widgets::field(&mut self.folder, "~/Pictures", 180.0)));
             });
-            Row::new("Unload the model after")
-                .help("Minutes idle. 0 keeps it loaded.")
+            Row::new("Unload model after")
+                .help("Idle minutes before unloading. Set to 0 to keep loaded.")
                 .show(ui, |ui, named| {
                     named(ui.add(egui::DragValue::new(&mut self.minutes).suffix(" min")));
                 });
@@ -293,7 +293,7 @@ impl Gallery {
                     ui.spacing_mut().item_spacing.x = 32.0;
                     widgets::stat(ui, "48,213", "files");
                     widgets::stat(ui, "3.1 GB", "on disk");
-                    widgets::stat(ui, "2 min", "since the last change");
+                    widgets::stat(ui, "2 min", "since last change");
                 });
                 widgets::share_bar(
                     ui,
@@ -315,10 +315,10 @@ impl Gallery {
                     }
                 });
             });
-            let delete = Row::new("Delete the index").help(if self.confirm_delete {
-                "Every file is read again from scratch. This can take an hour."
+            let delete = Row::new("Delete index").help(if self.confirm_delete {
+                "All files will be re-indexed from scratch. This may take up to an hour."
             } else {
-                "Starts again from nothing."
+                "Remove the index and rebuild it from scratch."
             });
             let delete = if self.confirm_delete {
                 delete.tint(p.error_tint).tone(Tone::Error)
@@ -344,7 +344,7 @@ impl Gallery {
         widgets::banner(
             ui,
             Tone::Warn,
-            "The vision model isn't downloaded yet, so images are found by name only.",
+            "The vision model is not downloaded yet. Images will be matched by filename only.",
             |ui| {
                 ui.add(Button::primary("Download").icon(Icon::Download).small());
             },
@@ -359,7 +359,7 @@ impl Gallery {
         widgets::group_label(ui, "Vision model");
         widgets::group(ui, |ui| {
             Row::new("Runs on")
-                .help("The NPU is the quietest on battery.")
+                .help("Using the NPU reduces battery drain and fan noise.")
                 .show(ui, |ui, _| {
                     widgets::segmented(
                         ui,
@@ -382,7 +382,7 @@ impl Gallery {
                 named(picked.response);
             });
             Row::new("Download")
-                .help("Checked against pinned sha256s.")
+                .help("Verified against pinned SHA-256 checksums.")
                 .show(ui, |ui, _| {
                     ui.add(Button::secondary("Verify").small());
                     widgets::chip(ui, ChipKind::Warn, "Not downloaded");
@@ -422,7 +422,7 @@ impl Gallery {
                 });
                 ui.horizontal(|ui| {
                     widgets::spinner(ui);
-                    widgets::small(ui, "Connecting to the service");
+                    widgets::small(ui, "Connecting to service…");
                 });
                 ui.horizontal_wrapped(|ui| {
                     widgets::toggle_chip(ui, &mut self.only_images, "Images", Some(128));
@@ -457,7 +457,11 @@ fn notices_and_art(ui: &mut Ui) {
         |_| {},
     );
     ui.add_space(8.0);
-    widgets::notice(ui, Tone::Error, "The index couldn't be opened: disk full.");
+    widgets::notice(
+        ui,
+        Tone::Error,
+        "Could not open the index because the disk is full.",
+    );
     widgets::group_label(ui, "Icons and logos");
     widgets::group(ui, |ui| {
         widgets::group_section(ui, |ui| {
@@ -490,16 +494,21 @@ fn notices_and_art(ui: &mut Ui) {
 }
 
 fn shortcuts(ui: &mut Ui) {
-    widgets::group_help(
-        ui,
-        "Set in your desktop's keyboard settings; shown here as they are bound.",
-    );
+    widgets::group_help(ui, "Configured in your desktop keyboard settings.");
     widgets::group(ui, |ui| {
         for (what, help, keys) in [
-            ("Search", "From anywhere.", "Meta+Space"),
-            ("Dictate", "Hold to talk, let go to type.", "Meta+Alt+D"),
-            ("Read the selection aloud", "", "Meta+Alt+R"),
-            ("Captions", "Live, over whatever is playing.", "Meta+Alt+C"),
+            ("Search", "Open search from any window.", "Meta+Space"),
+            (
+                "Dictate",
+                "Hold to speak, release to insert text.",
+                "Meta+Alt+D",
+            ),
+            ("Read selection aloud", "", "Meta+Alt+R"),
+            (
+                "Captions",
+                "Show live captions for active audio.",
+                "Meta+Alt+C",
+            ),
         ] {
             Row::new(what).help(help).show(ui, |ui, _| {
                 widgets::keys(ui, keys);

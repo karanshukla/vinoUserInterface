@@ -171,7 +171,7 @@ impl Updater {
             Ok(status) => status,
             Err(TryRecvError::Empty) => return false,
             Err(TryRecvError::Disconnected) => {
-                Status::Failed("The update stopped before it finished.".into())
+                Status::Failed("The update process exited unexpectedly.".into())
             }
         };
         self.pending = None;
@@ -314,12 +314,12 @@ pub fn fetch_latest(app: App) -> Result<String, String> {
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
-        .map_err(|_| "Couldn't check: curl isn't installed.".to_string())?;
+        .map_err(|_| "Could not check for updates: curl is not installed.".to_string())?;
     if !out.status.success() {
-        return Err("Couldn't reach GitHub to check. Try again when you're online.".into());
+        return Err("Could not reach GitHub. Check your internet connection and try again.".into());
     }
     latest_tag(&String::from_utf8_lossy(&out.stdout))
-        .ok_or_else(|| "GitHub's answer had no release in it.".into())
+        .ok_or_else(|| "Could not read the latest release from GitHub.".into())
 }
 
 #[cfg(test)]
