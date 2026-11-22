@@ -61,30 +61,30 @@ fn update_row(ui: &mut Ui, updater: &mut Updater) {
     let status = updater.status().clone();
     let (help, tone) = match &status {
         Status::Idle => (
-            "Checks GitHub for a newer release. Nothing else is sent.".to_owned(),
+            "Checks GitHub for a newer release. No local data is sent.".to_owned(),
             Tone::Neutral,
         ),
         Status::Checking => (
-            "Checking GitHub for a newer release.".to_owned(),
+            "Checking GitHub for a newer release…".to_owned(),
             Tone::Neutral,
         ),
         Status::UpToDate => (
-            format!("{name} {} is the newest release.", updater.current()),
+            format!("{name} {} is up to date.", updater.current()),
             Tone::Neutral,
         ),
         Status::Development(tag) => (
-            format!("This is a development build. The newest release is {tag}."),
+            format!("This is a development build. The latest release is {tag}."),
             Tone::Neutral,
         ),
         Status::Available(tag) if updater.can_install() => {
-            (format!("{tag} is out."), Tone::Neutral)
+            (format!("{tag} is available."), Tone::Neutral)
         }
         Status::Available(tag) => (
-            format!("{tag} is out. Its release page says how to update."),
+            format!("{tag} is available. See the release page for update instructions."),
             Tone::Neutral,
         ),
         Status::Installing(tag) => (
-            format!("Installing {tag}. This can take a few minutes."),
+            format!("Installing {tag}… This may take a few minutes."),
             Tone::Neutral,
         ),
         Status::Installed(tag) => (format!("Restart {name} to use {tag}."), Tone::Neutral),

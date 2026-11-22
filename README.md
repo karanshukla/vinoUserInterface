@@ -1,25 +1,30 @@
 # vinoUserInterface
 
-The egui theme and widgets the [vinoPilot](https://vinopilot.ca/) apps share,
-so they have one look: Inter, flat surfaces separated by hairlines, ink and
-green, taken from vinopilot.ca's site.css.
+Shared egui theme and widget library for the [vinoPilot](https://vinopilot.ca/)
+desktop apps. It provides a consistent look across apps using Inter, flat
+surfaces separated by hairlines, and the ink-and-green palette from
+vinopilot.ca's `site.css`.
 
 <p align="center">
-  <img src="docs/images/settings-dark.png" width="49%" alt="A settings page in the dark theme: sidebar, a group of rows with switches and a field, an index stats strip">
-  <img src="docs/images/settings-light.png" width="49%" alt="The Models page in the light theme: a warning banner with a Download button, a segmented control, a combo box, a progress bar">
+  <img src="docs/images/settings-dark.png" width="49%" alt="Settings page in the dark theme showing a sidebar, a group of rows with switches and a text field, and an index statistics strip">
+  <img src="docs/images/settings-light.png" width="49%" alt="Models page in the light theme showing a warning banner with a Download button, a segmented control, a combo box, and a progress bar">
 </p>
 
-Built for laptops, and for half of one. Snapped next to another window, a
-page swaps its sidebar for tabs and keeps its rows wide:
+Layouts are designed for laptop displays, including half-screen tiled windows.
+When a window is snapped next to another app, the sidebar switches to top tabs
+so setting rows keep their horizontal layout:
 
 ![Two windows side by side on a 1366 x 768 screen](docs/images/side-by-side.png)
 
 ## Requirements
 
-- Rust 1.95 and egui 0.37. The app brings its own eframe.
-- `busctl` or `gdbus` on `PATH` to follow the desktop's light or dark, text
-  size and reduced motion. Without them it keeps egui's default theme at 1x.
-- `curl`, only for the About page's update check, and only when the user asks.
+- Rust 1.95 and egui 0.37 (each application provides its own `eframe`
+  dependency).
+- `busctl` or `gdbus` on `PATH` to read the desktop's light/dark preference,
+  text scale, and reduced-motion setting. Without them, the crate uses egui's
+  default theme at 1x scale.
+- `curl`, used only when the user clicks **Check for updates** on the About
+  page.
 
 ## Quick start
 
@@ -29,10 +34,11 @@ vino-user-interface = "0.5"
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland"] }
 ```
 
-A tray that links no egui takes `default-features = false` and gets `family`,
-`tray` and `update` only.
+System tray processes that do not link egui can set `default-features = false`
+to include only `family`, `tray`, and `update`.
 
-A settings page: a group of rows, a banner, a status line.
+Example settings page with a row group, a warning banner, and a live status
+indicator:
 
 ```rust
 use eframe::egui;
@@ -59,7 +65,7 @@ impl eframe::App for Settings {
                     widgets::group_label(ui, "What to index");
                     widgets::group(ui, |ui| {
                         Row::new("Images")
-                            .help("By what's in them, not just the name.")
+                            .help("Index image contents as well as file names.")
                             .show(ui, |ui, _| {
                                 widgets::switch(ui, &mut self.images, "Images");
                             });
@@ -68,7 +74,7 @@ impl eframe::App for Settings {
                             named(ui.add(widgets::field(&mut self.folder, "~/Pictures", 180.0)));
                         });
                     });
-                    widgets::banner(ui, Tone::Warn, "The vision model isn't downloaded yet.", |ui| {
+                    widgets::banner(ui, Tone::Warn, "The vision model is not downloaded yet.", |ui| {
                         ui.add(Button::primary("Download").small());
                     });
                     a11y::live(&widgets::chip(ui, ChipKind::Ok, "Index up to date"));
@@ -87,7 +93,7 @@ fn main() -> eframe::Result {
             ..Default::default()
         },
         Box::new(|cc| {
-            // Fonts, colours and spacing, then the desktop's light or dark and motion setting.
+            // Install bundled fonts, colours, spacing, and desktop theme/motion preferences.
             theme::install(&cc.egui_ctx);
             Ok(Box::new(Settings::default()))
         }),
@@ -95,39 +101,39 @@ fn main() -> eframe::Result {
 }
 ```
 
-The full window is [examples/gallery.rs](examples/gallery.rs). Run it and drag
-the window narrower:
+See [examples/gallery.rs](examples/gallery.rs) for a complete demo window. Run
+it and resize the window to see the responsive breakpoints:
 
 ```sh
 cargo run --example gallery
 ```
 
-## What is in it
+## Modules
 
-| Module | Holds |
+| Module | Contents |
 |---|---|
-| `theme` | colour tokens for dark and light, fonts, egui's visuals and spacing, and what the desktop asks for |
-| `widgets` | groups of rows, switches, buttons, status text, chips, tags, key caps, banners, navigation, the page scroll area and the layout constants |
-| `icons` | a 16 px stroke icon set painted from SVG path data, no icon font |
-| `logo` | the app logos, painted at any size |
-| `file_tile` | a file's tile for a list, with a mark and an accent per format |
-| `a11y` | headings, tabs, list boxes, live regions and names for screen readers |
-| `window` | the app's own title bar, for a window opened without the desktop's |
-| `about`, `update` | the About page, and its row that checks for a newer release and installs it |
-| `family`, `tray` | the apps and their links, and the icon names every tray menu uses. No egui |
+| `theme` | Dark and light colour tokens, bundled fonts, egui visuals and spacing, and desktop preference detection |
+| `widgets` | Row groups, switches, buttons, status text, chips, tags, key caps, banners, navigation, page scroll areas, and layout constants |
+| `icons` | 16 px stroke icon set painted directly from SVG path data without an icon font |
+| `logo` | Vector app logos rendered at any size |
+| `file_tile` | File list tiles with a distinct shape and accent colour per file format |
+| `a11y` | Accessibility helpers for headings, tabs, list boxes, live regions, and screen-reader labels |
+| `window` | Client-side title bar and resize handles for windows rendered without desktop decorations |
+| `about`, `update` | Shared About page and on-demand update checker/installer row |
+| `family`, `tray` | App catalog, website links, and standard symbolic icon names for tray menus (no egui dependency) |
 
 <p align="center">
-  <img src="docs/images/widgets-dark.png" width="49%" alt="Every widget in the dark theme: buttons, status text, filter chips, tags, key caps, banners, icons, logos and file tiles">
-  <img src="docs/images/widgets-light.png" width="49%" alt="Every widget in the light theme">
+  <img src="docs/images/widgets-dark.png" width="49%" alt="All widgets in the dark theme: buttons, status text, filter chips, tags, key caps, banners, icons, logos, and file tiles">
+  <img src="docs/images/widgets-light.png" width="49%" alt="All widgets in the light theme">
 </p>
 
-## Docs
+## Documentation
 
-- [DESIGN.md](DESIGN.md): how a vino window is laid out and why. Breakpoints,
-  tokens, which component when, motion, words.
-- [docs/development.md](docs/development.md): the rules the tests keep, how
-  the source is organised, redrawing the pictures, releasing.
-- [SECURITY.md](SECURITY.md): what the crate reads and runs, and how to
-  report a problem.
+- [DESIGN.md](DESIGN.md): Layout rules, responsive breakpoints, design tokens,
+  component guidelines, motion, and UI copy conventions.
+- [docs/development.md](docs/development.md): Test invariants, source layout,
+  regenerating screenshots, and release steps.
+- [SECURITY.md](SECURITY.md): Network and system access, security controls, and
+  vulnerability reporting.
 - [The vino UI canvas](https://claude.ai/code/artifact/f79675d7-67e0-4a99-a84d-8a22d3b3a8f6):
-  the boards this implements.
+  Design boards this library implements.
