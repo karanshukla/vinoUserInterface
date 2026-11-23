@@ -60,12 +60,11 @@ pub const TWO_COLUMNS_FROM: f32 = 2.0 * NARROW + COLUMN_GAP;
 /// The widest a page of [`columns`] gets: two `CONTENT_MAX` columns. Give it
 /// to that page's [`page_scroll`] in place of `CONTENT_MAX`.
 pub const WIDE_MAX: f32 = 2.0 * CONTENT_MAX + COLUMN_GAP;
-const GROUP_RADIUS: f32 = 10.0;
 /// In a narrow row, the room a label needs beside its control before the
 /// control goes under it instead.
 const LABEL_MIN: f32 = 160.0;
-/// Inside a row, a banner or a notice: 16 beside, 12 above and below.
-const ROW_PADDING: Vec2 = vec2(16.0, 12.0);
+/// Inside a row: flush on the column edges horizontally, 12 above and below.
+const ROW_PADDING: Vec2 = vec2(0.0, 12.0);
 /// An icon on a body line or in a button.
 const ICON: f32 = 16.0;
 /// Either side of a tag's text.

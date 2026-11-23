@@ -59,7 +59,7 @@ impl ButtonKind {
                     Color32::TRANSPARENT
                 },
                 Stroke::NONE,
-                p.text,
+                if pressed || hovered { p.text } else { p.muted },
             ),
             ButtonKind::Destructive => (
                 if pressed {

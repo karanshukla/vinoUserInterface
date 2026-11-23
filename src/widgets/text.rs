@@ -32,7 +32,7 @@ pub fn window_title(ui: &mut Ui, text: &str, color: Color32) -> Response {
 /// A group's label above it: 13 semibold, muted, in sentence case as
 /// passed, a level-2 heading.
 pub fn group_label(ui: &mut Ui, text: &str) -> Response {
-    ui.add_space(14.0);
+    ui.add_space(20.0);
     let p = palette(ui);
     let response = ui.add(
         egui::Label::new(
