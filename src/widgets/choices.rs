@@ -333,41 +333,42 @@ pub fn search_field(
         .stroke(stroke)
         .corner_radius(10.0)
         .inner_margin(egui::Margin::symmetric(SEARCH_PADDING - ring, 0));
+    let inner_w = width - 2.0 * f32::from(SEARCH_PADDING);
     frame
         .show(ui, |ui| {
-            ui.set_width(width - 2.0 * f32::from(SEARCH_PADDING));
+            ui.set_width(inner_w);
             ui.set_height(SEARCH_HEIGHT - 2.0 * stroke.width);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
                 icons::icon(ui, Icon::Search, 16.0, p.muted);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !text.is_empty() && clear_button(ui).clicked() {
-                        text.clear();
-                        cleared = true;
-                        ui.memory_mut(|m| m.request_focus(id));
-                    }
-                    let mut edit = ui
-                        .with_layout(Layout::left_to_right(Align::Center), |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(text)
-                                    .id(id)
-                                    .frame(egui::Frame::NONE)
-                                    .font(FontId::proportional(15.0))
-                                    .hint_text(hint)
-                                    .desired_width(f32::INFINITY)
-                                    .margin(egui::Margin::symmetric(0, 8))
-                                    .align(egui::Align2::LEFT_CENTER),
-                            )
-                        })
-                        .inner;
-                    if cleared {
-                        edit.mark_changed();
-                    }
-                    ui.ctx()
-                        .accesskit_node_builder(edit.id, |node| node.set_label(name));
-                    edit
-                })
-                .inner
+                let show_clear = !text.is_empty();
+                let clear_space = if show_clear {
+                    CLEAR_BUTTON_SIZE + 10.0
+                } else {
+                    0.0
+                };
+                let edit_w = (inner_w - 16.0 - 10.0 - clear_space).max(40.0);
+                let mut edit = ui.add(
+                    egui::TextEdit::singleline(text)
+                        .id(id)
+                        .frame(egui::Frame::NONE)
+                        .font(FontId::proportional(15.0))
+                        .hint_text(hint)
+                        .desired_width(edit_w)
+                        .margin(egui::Margin::symmetric(0, 8))
+                        .align(egui::Align2::LEFT_CENTER),
+                );
+                if show_clear && clear_button(ui).clicked() {
+                    text.clear();
+                    cleared = true;
+                    ui.memory_mut(|m| m.request_focus(id));
+                }
+                if cleared {
+                    edit.mark_changed();
+                }
+                ui.ctx()
+                    .accesskit_node_builder(edit.id, |node| node.set_label(name));
+                edit
             })
             .inner
         })
