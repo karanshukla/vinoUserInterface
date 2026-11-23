@@ -311,6 +311,14 @@ pub fn search_field(
     let p = palette(ui);
     let id = ui.scope_id().with(("search-field", name));
     let focused = ui.memory(|m| m.has_focus(id));
+    let mut cleared = false;
+    if focused
+        && !text.is_empty()
+        && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+    {
+        text.clear();
+        cleared = true;
+    }
     let stroke = if focused {
         Stroke::new(2.0_f32, p.accent)
     } else {
@@ -333,7 +341,6 @@ pub fn search_field(
                 ui.spacing_mut().item_spacing.x = 10.0;
                 icons::icon(ui, Icon::Search, 16.0, p.muted);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let mut cleared = false;
                     if !text.is_empty() && clear_button(ui).clicked() {
                         text.clear();
                         cleared = true;
@@ -353,13 +360,6 @@ pub fn search_field(
                             )
                         })
                         .inner;
-                    if (focused || edit.has_focus())
-                        && !text.is_empty()
-                        && ui.input(|i| i.key_pressed(egui::Key::Escape))
-                    {
-                        text.clear();
-                        cleared = true;
-                    }
                     if cleared {
                         edit.mark_changed();
                     }
