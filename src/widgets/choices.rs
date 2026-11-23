@@ -295,9 +295,12 @@ pub fn field<'t>(text: &'t mut String, hint: &str, width: f32) -> egui::TextEdit
 
 const SEARCH_HEIGHT: f32 = 38.0;
 const SEARCH_PADDING: i8 = 12;
+const CLEAR_BUTTON_SIZE: f32 = 24.0;
 
-/// A larger search field with a search icon and an accent ring while it has
-/// focus. `name` is its accessible name.
+/// A larger search field with a search icon, an accent ring while focused,
+/// and an inline clear button (plus Escape) when non-empty (pinned by
+/// `widgets::tests::a_search_field_clears_from_its_inline_button_and_escape`).
+/// `name` is its accessible name.
 pub fn search_field(
     ui: &mut Ui,
     text: &mut String,
@@ -329,21 +332,75 @@ pub fn search_field(
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
                 icons::icon(ui, Icon::Search, 16.0, p.muted);
-                let edit = ui.add(
-                    egui::TextEdit::singleline(text)
-                        .id(id)
-                        .frame(egui::Frame::NONE)
-                        .font(FontId::proportional(15.0))
-                        .hint_text(hint)
-                        .desired_width(f32::INFINITY)
-                        .margin(egui::Margin::symmetric(0, 8))
-                        .align(egui::Align2::LEFT_CENTER),
-                );
-                ui.ctx()
-                    .accesskit_node_builder(edit.id, |node| node.set_label(name));
-                edit
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let mut cleared = false;
+                    if !text.is_empty() && clear_button(ui).clicked() {
+                        text.clear();
+                        cleared = true;
+                        ui.memory_mut(|m| m.request_focus(id));
+                    }
+                    let mut edit = ui
+                        .with_layout(Layout::left_to_right(Align::Center), |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(text)
+                                    .id(id)
+                                    .frame(egui::Frame::NONE)
+                                    .font(FontId::proportional(15.0))
+                                    .hint_text(hint)
+                                    .desired_width(f32::INFINITY)
+                                    .margin(egui::Margin::symmetric(0, 8))
+                                    .align(egui::Align2::LEFT_CENTER),
+                            )
+                        })
+                        .inner;
+                    if (focused || edit.has_focus())
+                        && !text.is_empty()
+                        && ui.input(|i| i.key_pressed(egui::Key::Escape))
+                    {
+                        text.clear();
+                        cleared = true;
+                    }
+                    if cleared {
+                        edit.mark_changed();
+                    }
+                    ui.ctx()
+                        .accesskit_node_builder(edit.id, |node| node.set_label(name));
+                    edit
+                })
+                .inner
             })
             .inner
         })
         .inner
+}
+
+/// Inline clear button inside [`search_field`]: 24 x 24 hit target, muted at
+/// rest and brightening on hover.
+fn clear_button(ui: &mut Ui) -> Response {
+    let p = palette(ui);
+    let (rect, response) =
+        ui.allocate_exact_size(vec2(CLEAR_BUTTON_SIZE, CLEAR_BUTTON_SIZE), Sense::click());
+    response.widget_info(|| WidgetInfo::labeled(Role::Button, true, "Clear search"));
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        if response.hovered() {
+            painter.rect_filled(rect, 6.0, p.pressed);
+        }
+        let color = if response.hovered() { p.text } else { p.muted };
+        let half = 4.0;
+        let c = rect.center();
+        let stroke = Stroke::new(1.5_f32, color);
+        painter.line_segment(
+            [pos2(c.x - half, c.y - half), pos2(c.x + half, c.y + half)],
+            stroke,
+        );
+        painter.line_segment(
+            [pos2(c.x + half, c.y - half), pos2(c.x - half, c.y + half)],
+            stroke,
+        );
+        if response.has_focus() {
+            paint_focus_ring(painter, rect, 6.0, p);
+        }
+    }
+    response.on_hover_text("Clear (Esc)")
 }
