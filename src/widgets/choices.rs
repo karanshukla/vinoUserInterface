@@ -342,12 +342,11 @@ pub fn search_field(
                 ui.spacing_mut().item_spacing.x = 10.0;
                 icons::icon(ui, Icon::Search, 16.0, p.muted);
                 let show_clear = !text.is_empty();
-                let clear_space = if show_clear {
-                    CLEAR_BUTTON_SIZE + 10.0
+                let edit_w = if show_clear {
+                    (inner_w - 16.0 - 10.0 - CLEAR_BUTTON_SIZE - 10.0).max(40.0)
                 } else {
-                    0.0
+                    f32::INFINITY
                 };
-                let edit_w = (inner_w - 16.0 - 10.0 - clear_space).max(40.0);
                 let mut edit = ui.add(
                     egui::TextEdit::singleline(text)
                         .id(id)
