@@ -23,15 +23,15 @@ pub use desktop::{
 /// One theme's colours.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Palette {
-    /// The page.
+    /// The page canvas.
     pub bg: Color32,
-    /// Groups, cards, list rows, the sidebar and headers.
+    /// The sidebar, headers, and neutral strips.
     pub surface: Color32,
     /// Text fields, combo boxes, secondary buttons, menus.
     pub field: Color32,
     /// A pressed control; the track of a switch that is off.
     pub pressed: Color32,
-    /// Hairlines between rows and around groups.
+    /// Hairlines between rows and bounding groups.
     pub rule: Color32,
     /// The outline of a button or a menu.
     pub rule_strong: Color32,
@@ -115,11 +115,11 @@ pub const DARK: Palette = Palette {
 };
 
 pub const LIGHT: Palette = Palette {
-    bg: rgb(0xf4f5f6),
-    surface: rgb(0xffffff),
+    bg: rgb(0xffffff),
+    surface: rgb(0xf6f7f8),
     field: rgb(0xf0f1f3),
     pressed: rgb(0xe5e7ea),
-    rule: rgb(0xe3e5e8),
+    rule: rgb(0xe5e7eb),
     rule_strong: rgb(0xcdd0d5),
     edge: rgb(0x858a92),
     text: rgb(0x17181a),

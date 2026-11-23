@@ -137,11 +137,11 @@ palette with `theme::palette(ctx)`.
 
 | Token | Role |
 |---|---|
-| `bg` | Page background |
-| `surface` | Groups, sidebar, and header background |
+| `bg` | Page canvas |
+| `surface` | Sidebar, header, and neutral strips |
 | `field` | Text fields, combo boxes, secondary buttons, and menus |
 | `pressed` | Pressed control fill and off-state switch track |
-| `rule` | Hairline dividers between rows and around groups |
+| `rule` | Hairline dividers between rows and bounding groups |
 | `rule_strong` | Button and menu borders |
 | `edge` | Field/checkbox borders, slider rails, and scroll handles (3:1 contrast) |
 | `text`, `muted` | Primary and secondary text (both at least 4.5:1 on every background) |
@@ -156,6 +156,10 @@ palette with `theme::palette(ctx)`.
 
 Colour usage rules:
 
+- **Keep defaults quiet so non-default states stand out.** Emphasis comes from
+  contrast with surrounding controls rather than heavy chrome. Inactive filter
+  chips, ghost actions, off switches, and normal status text stay muted or grey
+  so active, warning, and error states catch the eye immediately.
 - **Reserve green for active, selected, or completed states.** Do not use green
   for decoration or branding; primary buttons use `primary_fill` (ink/white)
   rather than green in both themes.
@@ -175,8 +179,8 @@ Colour usage rules:
   contrast against ink (`cargo test contrast`), and every format also has a
   distinct icon shape so colour is not the sole indicator.
 - **Limit shadows to menus and popups.** Keep all other surfaces flat with
-  hairline borders, without gradients, glows, or translucent panels. The only
-  gradient is `fade_below` to indicate scrollable content.
+  hairline dividers rather than boxed cards, gradients, glows, or translucent
+  panels. The only gradient is `fade_below` to indicate scrollable content.
 
 ### Typography
 
@@ -209,11 +213,12 @@ automatically.
 | Status text / filter chip | 24 px / 28 px tall |
 | Navigation item | 34 px tall |
 | Icon | 16 px inline with text, 18 to 20 px standalone |
-| Row, banner, and notice padding | 16 x 12 px |
+| Row vertical padding | 12 px above and below (0 px horizontal, flush on column edges; 12 px horizontal when tinted) |
+| Banner and notice padding | 15 px left (past 3 px accent bar), 12 px right, 10 px vertical |
 | Tag padding | 6 px horizontal, 16 px tall |
 | Sidebar | 10 px horizontal margin; nav icon centred at 18 px, text at 36 px; 24 px logo |
 | Default item spacing | 8 px |
-| Corner radius | 8 px for controls; 10 px for groups, banners, menus, and search fields |
+| Corner radius | 8 px for controls; 6 px on trailing corners of banners; 10 px for menus and search fields |
 
 Use spacing values from the scale `2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28`,
 defaulting to `8` unless another step is needed.
@@ -257,23 +262,31 @@ around it to meet WCAG 2.5.8 (verified by `tests/a11y.rs`).
 
 ### Groups and rows
 
-Place related settings in a `group` of `Row` widgets under a `group_label`.
-Split groups larger than roughly seven rows into separate groups or pages.
+Place related settings in a borderless `group` of `Row` widgets under a
+`group_label`. Split groups larger than roughly seven rows into separate groups
+or pages so users scan short, labelled chunks rather than one undifferentiated
+list.
 
+- **Dissolve cards into the column edges.** `group` bounds its rows with 1 px
+  top and bottom hairlines and separates rows with 1 px hairlines rather than
+  wrapping them in rounded boxes. Labels snap flush to the left column edge
+  (aligning with page titles and section labels) and controls snap flush to the
+  right column edge, avoiding borders-on-borders and stacked corner radii while
+  reclaiming horizontal space on narrow laptop splits.
 - Wrap each row's control with the `named` callback provided to the closure so
   screen readers announce it using the row's title. Switches accept their
   accessible name directly as an argument.
-- `group` masks its corners with the page background colour (`bg`). When placing
-  a group on another background colour (such as a side panel surface), use
-  `group_on(ui, ground, ...)`. Do not nest groups.
+- `group_on` is retained for source compatibility; borderless groups need no
+  corner masking on non-page backgrounds. Do not nest groups.
 - Place non-row content inside a group (such as a stats strip or preview) inside
-  `group_section` to match standard row padding.
+  `group_section` to match standard row vertical rhythm and column alignment.
 - Rows lay out controls from right to left (the first control added appears
   rightmost, such as Delete followed by Cancel to its left). When a row stacks
   vertically, it preserves that visual order so controls do not swap positions
   as the window resizes.
-- `banner` and `notice` use the same 16 x 12 px padding as rows so text aligns
-  vertically across stacked sections.
+- Tinted rows (such as inline destructive confirmations) add a 3 px semantic
+  left accent bar and 12 px horizontal padding. `banner` and `notice` use the
+  same 3 px edge-anchored strip pattern without 4-sided card borders.
 
 ### Sidebar and narrow header
 

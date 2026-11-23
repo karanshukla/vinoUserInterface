@@ -3,17 +3,20 @@
 use std::cell::RefCell;
 
 use egui::{
-    Align, Color32, FontId, Id, Layout, Rect, Response, RichText, Sense, Shape, Stroke, StrokeKind,
-    Ui, UiBuilder, pos2, vec2,
+    Align, Color32, FontId, Id, Layout, Rect, Response, RichText, Sense, Shape, Stroke, Ui,
+    UiBuilder, pos2, vec2,
 };
 
-use super::{CONTROL_HEIGHT, GROUP_RADIUS, LABEL_MIN, NARROW, ROW_PADDING, Tone, palette};
+use super::{CONTROL_HEIGHT, LABEL_MIN, NARROW, ROW_PADDING, Tone, palette};
 use crate::theme;
 
 /// Between a row's label and the control beside it.
 const CONTROL_GAP: f32 = 16.0;
 /// Between a row's label and the controls stacked under it.
 const STACK_GAP: f32 = 10.0;
+/// Left accent bar and horizontal inset for a tinted row (inline confirmation).
+const TINT_BAR: f32 = 3.0;
+const TINT_INSET: f32 = 12.0;
 /// A row's content and its label are never laid out narrower than these.
 const MIN_CONTENT_WIDTH: f32 = 40.0;
 const MIN_LABEL_WIDTH: f32 = 80.0;
@@ -23,20 +26,17 @@ const UNSEEN_CONTROL_WIDTH: f32 = 120.0;
 /// Left of stacked controls, so a rounding error doesn't wrap the last one.
 const WRAP_SLACK: f32 = 1.0;
 
-/// A surface with a 1 px rule and 10 px corners, holding [`Row`]s separated
-/// by hairlines, on the page. The corners stay round whatever a row paints.
+/// A borderless section of [`Row`]s separated by 1 px hairlines and bounded
+/// top and bottom, aligned flush to the column's left and right edges.
 pub fn group<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
     group_on(ui, palette(ui).bg, add)
 }
 
-/// A [`group`] on something other than the page, a side panel's surface say:
-/// what a tinted row paints over the corners is masked in `ground`.
-pub fn group_on<R>(ui: &mut Ui, ground: Color32, add: impl FnOnce(&mut Ui) -> R) -> R {
+/// Like [`group`]; kept for source compatibility with callers on non-page
+/// backgrounds, where borderless rows need no corner masking.
+pub fn group_on<R>(ui: &mut Ui, _ground: Color32, add: impl FnOnce(&mut Ui) -> R) -> R {
     let p = palette(ui);
     let outer = ui.available_rect_before_wrap();
-    let fill = ui.painter().add(Shape::Noop);
-    // Rows run to the group's edge and the rule is painted inside it, over
-    // their padding's outermost pixel, so text lines up with a banner's.
     let inner_rect = Rect::from_min_size(outer.min, vec2(outer.width(), f32::INFINITY));
     let inner = ui.scope_builder(
         UiBuilder::new()
@@ -51,36 +51,11 @@ pub fn group_on<R>(ui: &mut Ui, ground: Color32, add: impl FnOnce(&mut Ui) -> R)
     let bottom = inner.response.rect.bottom().max(outer.top() + 2.0);
     let rect = Rect::from_min_max(outer.min, pos2(outer.right(), bottom));
     let painter = ui.painter();
-    painter.set(fill, Shape::rect_filled(rect, GROUP_RADIUS, p.surface));
-    mask_corners(painter, rect, ground);
-    painter.rect_stroke(
-        rect,
-        GROUP_RADIUS,
-        Stroke::new(1.0_f32, p.rule),
-        StrokeKind::Inside,
-    );
+    let rule = Stroke::new(1.0_f32, p.rule);
+    painter.hline(rect.left()..=rect.right(), rect.top(), rule);
+    painter.hline(rect.left()..=rect.right(), rect.bottom(), rule);
     ui.allocate_rect(rect, Sense::hover());
     inner.inner
-}
-
-/// Paints `ground` over what a row painted outside the group's round corners.
-fn mask_corners(painter: &egui::Painter, rect: Rect, ground: Color32) {
-    const ARC_STEPS: usize = 8;
-    let radius = GROUP_RADIUS;
-    for (corner, dx, dy) in [
-        (rect.left_top(), 1.0, 1.0),
-        (rect.right_top(), -1.0, 1.0),
-        (rect.right_bottom(), -1.0, -1.0),
-        (rect.left_bottom(), 1.0, -1.0),
-    ] {
-        let center = corner + vec2(dx * radius, dy * radius);
-        let mut points = vec![corner];
-        for step in 0..=ARC_STEPS {
-            let angle = step as f32 / ARC_STEPS as f32 * std::f32::consts::FRAC_PI_2;
-            points.push(center - vec2(dx * radius * angle.cos(), dy * radius * angle.sin()));
-        }
-        painter.add(Shape::convex_polygon(points, ground, Stroke::NONE));
-    }
 }
 
 /// A row in a [`group`]: title and help on the left, the control on the
@@ -169,7 +144,7 @@ impl<'a> Row<'a> {
             }
             Some(shown.id)
         };
-        show_row(ui, self.tint, &estimate, label, control)
+        show_row(ui, self.tint, self.tone, &estimate, label, control)
     }
 
     /// A row whose left side is drawn by `label` instead of a title: a path
@@ -181,7 +156,14 @@ impl<'a> Row<'a> {
         label: impl FnOnce(&mut Ui) -> Option<Id>,
         control: impl FnOnce(&mut Ui, &dyn Fn(Response) -> Response) -> R,
     ) -> R {
-        show_row(ui, self.tint, &|_, _| CONTROL_HEIGHT, label, control)
+        show_row(
+            ui,
+            self.tint,
+            self.tone,
+            &|_, _| CONTROL_HEIGHT,
+            label,
+            control,
+        )
     }
 }
 
@@ -206,6 +188,7 @@ type RowContent<R> = (R, Option<Id>, f32);
 fn show_row<R>(
     ui: &mut Ui,
     tint: Option<Color32>,
+    tone: Tone,
     estimate: &dyn Fn(&Ui, f32) -> f32,
     label: impl FnOnce(&mut Ui) -> Option<Id>,
     control: impl FnOnce(&mut Ui, &dyn Fn(Response) -> Response) -> R,
@@ -218,10 +201,15 @@ fn show_row<R>(
     let line = ui.painter().add(Shape::Noop);
     let salt = ui.next_auto_id();
     let width_id = salt.with("control width");
+    let pad_x = if tint.is_some() {
+        TINT_INSET
+    } else {
+        ROW_PADDING.x
+    };
     let space = RowSpace {
-        left: full.left() + ROW_PADDING.x,
+        left: full.left() + pad_x,
         top,
-        content_width: (full.width() - 2.0 * ROW_PADDING.x).max(MIN_CONTENT_WIDTH),
+        content_width: (full.width() - 2.0 * pad_x).max(MIN_CONTENT_WIDTH),
         salt,
         width_id,
         last_control_width: ui.data(|d| d.get_temp::<f32>(width_id)),
@@ -248,6 +236,16 @@ fn show_row<R>(
     let painter = ui.painter();
     if let Some(tint) = tint {
         painter.set(bg, Shape::rect_filled(rect, 0.0, tint));
+        let bar_color = match tone {
+            Tone::Warn => p.warn,
+            Tone::Error => p.error,
+            Tone::Info | Tone::Neutral => p.accent,
+        };
+        painter.rect_filled(
+            Rect::from_min_size(rect.min, vec2(TINT_BAR, rect.height())),
+            0.0,
+            bar_color,
+        );
     }
     if !first {
         painter.set(

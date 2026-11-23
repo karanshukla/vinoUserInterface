@@ -158,10 +158,15 @@ fn paint_segment(
     let p = palette(ui);
     let painter = ui.painter();
     if selected {
+        let selected_fill = if p.bg == theme::LIGHT.bg {
+            p.bg
+        } else {
+            p.surface
+        };
         painter.rect(
             rect,
             6.0,
-            faded(p.surface, enabled),
+            faded(selected_fill, enabled),
             Stroke::new(1.0_f32, faded(p.rule_strong, enabled)),
             StrokeKind::Inside,
         );
@@ -229,7 +234,7 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
         (p.tint, Stroke::NONE, p.accent, p.accent)
     } else if response.hovered() && enabled {
         (
-            p.hovered(),
+            p.field,
             Stroke::new(1.0_f32, p.rule_strong),
             p.text,
             p.muted,
@@ -237,8 +242,8 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
     } else {
         (
             Color32::TRANSPARENT,
-            Stroke::new(1.0_f32, p.rule_strong),
-            p.text,
+            Stroke::new(1.0_f32, p.rule),
+            p.muted,
             p.muted,
         )
     };
