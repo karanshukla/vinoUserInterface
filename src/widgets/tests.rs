@@ -476,3 +476,33 @@ fn a_search_field_stays_put_when_its_ring_thickens() {
     assert!(focused.is_focused());
     assert_eq!(focused.rect(), resting);
 }
+
+#[test]
+fn a_search_field_clears_from_its_inline_button_and_escape() {
+    let mut h = Harness::builder().with_size((400.0, 100.0)).build_ui_state(
+        |ui, (styled, text): &mut (bool, String)| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            search_field(ui, text, "Search", "Search", 300.0);
+        },
+        (false, "invoice".to_owned()),
+    );
+    h.run();
+    h.get_by_role_and_label(Role::Button, "Clear search")
+        .click();
+    h.run();
+    assert!(h.state().1.is_empty());
+    assert!(
+        h.query_by_role_and_label(Role::Button, "Clear search")
+            .is_none()
+    );
+
+    h.state_mut().1 = "receipt".to_owned();
+    h.run();
+    h.get_by_role(Role::TextInput).focus();
+    h.run();
+    h.key_press(egui::Key::Escape);
+    h.run();
+    assert!(h.state().1.is_empty());
+}

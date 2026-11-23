@@ -385,7 +385,11 @@ impl Gallery {
                 .help("Verified against pinned SHA-256 checksums.")
                 .show(ui, |ui, _| {
                     ui.add(Button::secondary("Verify").small());
-                    widgets::chip(ui, ChipKind::Warn, "Not downloaded");
+                    widgets::hover_card_text(
+                        widgets::chip(ui, ChipKind::Warn, "Not downloaded"),
+                        "SigLIP 2, base (370 MB)",
+                        "Stored under ~/.local/share/vinosearch/models and verified against pinned SHA-256 checksums.",
+                    );
                 });
         });
     }

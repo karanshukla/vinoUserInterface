@@ -12,6 +12,32 @@ increased. The layout rules below follow from these constraints.
 
 ![Two vino windows snapped side by side on a 1366 x 768 laptop](docs/images/side-by-side.png)
 
+## Design taste and intentionality
+
+Every vinoPilot window follows five product-design principles so apps stay
+purposeful rather than drifting toward generic UI averages:
+
+- **Understand the "Why".** Never add an icon, chevron, badge, divider, card,
+  or menu item merely because other software has one. Every visible element
+  must justify its pixels for the user's immediate task.
+- **Apply Tesla's Law.** Complexity cannot be eliminated; shift it from the
+  user to the system. Infer desktop theme, text scale, reduced motion, and
+  sensible hardware defaults (such as NPU) automatically, and favour direct,
+  single-step controls (`switch`, `segmented`, inline clear and `Esc` on
+  `search_field`) over multi-step pickers or confirm dialogs.
+- **Build purposeful onboarding.** Avoid welcome modals, feature tours, or
+  explanatory splash screens. When first-run setup is genuinely needed, ask
+  only the 1–2 concrete decisions the system cannot infer (such as which
+  folders to index or which model to download) and configure the app directly
+  from those answers.
+- **Design for user context, not page-by-page.** Do not force users to leave
+  their current view just to inspect secondary metadata. Use
+  `widgets::hover_card` or `widgets::hover_card_text` to surface details (file
+  snippets, model checksums, error causes) inline on hover.
+- **Form an opinion.** Define concrete, consistent software behaviour
+  (instant-apply settings, borderless hairline groups, quiet defaults, inline
+  destructive confirmation) rather than leaving behaviour ambiguous.
+
 ## Target screen sizes
 
 Values below are in logical pixels after desktop display scaling (for example, a
@@ -249,6 +275,7 @@ around it to meet WCAG 2.5.8 (verified by `tests/a11y.rs`).
 | Page-level actionable condition | `banner` with a remediation button | Modal dialog |
 | Page-level informational note | `banner` with `Tone::Info` | Warning banner |
 | Immediate failure message | `notice` | Modal dialog |
+| In-context secondary detail or preview | `hover_card` / `hover_card_text` | Navigating to a separate page or modal |
 | Page navigation | `nav_item` in sidebar when wide; `tab` when narrow | Showing both simultaneously |
 
 - **Use icons purposefully.** Reserve icons for icon-only buttons (with
