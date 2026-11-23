@@ -365,6 +365,9 @@ pub fn search_field(
                 if cleared {
                     edit.mark_changed();
                 }
+                if (focused || edit.has_focus()) && !text.is_empty() {
+                    take_escape(ui, id);
+                }
                 ui.ctx()
                     .accesskit_node_builder(edit.id, |node| node.set_label(name));
                 edit
@@ -372,6 +375,20 @@ pub fn search_field(
             .inner
         })
         .inner
+}
+
+/// Keeps Escape from surrendering focus while `search_field` has text so the
+/// first Escape clears the query and a second Escape leaves the field.
+fn take_escape(ui: &Ui, id: egui::Id) {
+    ui.memory_mut(|m| {
+        m.set_focus_lock_filter(
+            id,
+            egui::EventFilter {
+                escape: true,
+                ..Default::default()
+            },
+        )
+    });
 }
 
 /// Inline clear button inside [`search_field`]: 24 x 24 hit target, muted at
