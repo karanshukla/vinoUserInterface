@@ -21,6 +21,7 @@ struct State {
     theme: Theme,
     on: bool,
     minutes: u32,
+    threshold: f32,
     device: Device,
     images: bool,
     folder: String,
@@ -61,6 +62,9 @@ fn gallery(ui: &mut Ui, state: &mut State) {
             Row::new("Unload after").show(ui, |ui, named| {
                 named(ui.add(egui::DragValue::new(&mut state.minutes)));
             });
+            Row::new("Threshold").show(ui, |ui, named| {
+                widgets::slider(ui, named, &mut state.threshold, 0.0..=100.0, " %");
+            });
             Row::new("Device").show(ui, |ui, _| {
                 widgets::segmented(
                     ui,
@@ -95,8 +99,12 @@ fn gallery(ui: &mut Ui, state: &mut State) {
             ui.add(Button::primary("Save"));
             ui.add(Button::ghost("Cancel").small());
             ui.add(Button::destructive("Delete index").icon(Icon::Cleanup));
+            widgets::copy_button(ui, "vinosearch --status", "Copy command");
             let remove = widgets::icon_button(ui, ButtonKind::Ghost, Icon::Excluded, "Remove");
             a11y::for_what(remove, "~/Downloads");
+        });
+        widgets::disclosure(ui, "advanced", "Advanced", |ui| {
+            widgets::small(ui, "Secondary options.");
         });
         widgets::banner(
             ui,
@@ -120,24 +128,27 @@ fn gallery(ui: &mut Ui, state: &mut State) {
 }
 
 fn harness(theme: Theme, width: f32) -> Harness<'static, State> {
-    Harness::builder().with_size((width, 900.0)).build_ui_state(
-        gallery,
-        State {
-            styled: false,
-            theme,
-            on: false,
-            minutes: 15,
-            device: Device::Npu,
-            images: true,
-            folder: String::new(),
-            query: String::new(),
-            model: "Small",
-            page: 0,
-            updater: Updater::new(App::Search, "1.0.0")
-                .with_command(["true"])
-                .showing(Status::Available("v2".into())),
-        },
-    )
+    Harness::builder()
+        .with_size((width, 1200.0))
+        .build_ui_state(
+            gallery,
+            State {
+                styled: false,
+                theme,
+                on: false,
+                minutes: 15,
+                threshold: 50.0,
+                device: Device::Npu,
+                images: true,
+                folder: String::new(),
+                query: String::new(),
+                model: "Small",
+                page: 0,
+                updater: Updater::new(App::Search, "1.0.0")
+                    .with_command(["true"])
+                    .showing(Status::Available("v2".into())),
+            },
+        )
 }
 
 /// Each theme at a wide and a narrow width, where rows stack.

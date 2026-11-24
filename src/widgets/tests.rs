@@ -506,3 +506,44 @@ fn a_search_field_clears_from_its_inline_button_and_escape() {
     h.run();
     assert!(h.state().1.is_empty());
 }
+
+#[test]
+fn a_copy_button_confirms_and_resets() {
+    let mut h = Harness::builder().with_size((300.0, 100.0)).build_ui_state(
+        |ui, styled: &mut bool| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            copy_button(ui, "vinosearch --status", "Copy command");
+        },
+        false,
+    );
+    h.run();
+    h.get_by_role_and_label(Role::Button, "Copy command")
+        .click();
+    h.run_steps(2);
+    h.get_by_role_and_label(Role::Button, "Copied");
+}
+
+#[test]
+fn a_disclosure_toggles_its_body_open_and_closed() {
+    let mut h = Harness::builder().with_size((400.0, 200.0)).build_ui_state(
+        |ui, styled: &mut bool| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            disclosure(ui, "advanced", "Advanced", |ui| {
+                small(ui, "Hidden until expanded.");
+            });
+        },
+        false,
+    );
+    h.run();
+    assert!(h.query_by_label("Hidden until expanded.").is_none());
+    h.get_by_role_and_label(Role::Button, "Advanced").click();
+    h.run();
+    h.get_by_label("Hidden until expanded.");
+    h.get_by_role_and_label(Role::Button, "Advanced").click();
+    h.run();
+    assert!(h.query_by_label("Hidden until expanded.").is_none());
+}

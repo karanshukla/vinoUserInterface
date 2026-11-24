@@ -293,6 +293,29 @@ pub fn field<'t>(text: &'t mut String, hint: &str, width: f32) -> egui::TextEdit
         .align(egui::Align2::LEFT_CENTER)
 }
 
+/// A slider and its number box, both named by `named` (usually a
+/// [`crate::Row`]'s callback). `egui::Slider` leaves its built-in number box
+/// unnamed, so this pairs a value-less slider with an explicit `DragValue` and
+/// names both.
+pub fn slider<Num: egui::emath::Numeric>(
+    ui: &mut Ui,
+    mut named: impl FnMut(Response) -> Response,
+    value: &mut Num,
+    range: std::ops::RangeInclusive<Num>,
+    suffix: &str,
+) -> Response {
+    let mut number = egui::DragValue::new(value).range(range.clone());
+    if !suffix.is_empty() {
+        number = number.suffix(suffix);
+    }
+    let number = named(ui.add(number));
+    let prev = ui.spacing().slider_width;
+    ui.spacing_mut().slider_width = (ui.available_width() - 8.0).clamp(48.0, 200.0);
+    let bar = named(ui.add(egui::Slider::new(value, range).show_value(false)));
+    ui.spacing_mut().slider_width = prev;
+    bar | number
+}
+
 const SEARCH_HEIGHT: f32 = 38.0;
 const SEARCH_PADDING: i8 = 12;
 const CLEAR_BUTTON_SIZE: f32 = 24.0;
