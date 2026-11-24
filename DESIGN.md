@@ -276,6 +276,11 @@ around it to meet WCAG 2.5.8 (verified by `tests/a11y.rs`).
 | Page-level informational note | `banner` with `Tone::Info` | Warning banner |
 | Immediate failure message | `notice` | Modal dialog |
 | In-context secondary detail or preview | `hover_card` / `hover_card_text` | Navigating to a separate page or modal |
+| Numeric range setting | `slider` inside a `Row` (with `named`) | Raw `egui::Slider` with custom width |
+| Copy-to-clipboard action | `copy_button` (auto-resets after `"Copied"`) | Manual clipboard state per app |
+| Secondary / advanced options | `disclosure` | Separate settings page or modal |
+| Empty list with recovery action | `empty_state` | Hero illustration or oversized block |
+| Hairline list row selection | `paint_list_row` + `paint_list_end` | 4-sided rounded row cards |
 | Page navigation | `nav_item` in sidebar when wide; `tab` when narrow | Showing both simultaneously |
 
 - **Use icons purposefully.** Reserve icons for icon-only buttons (with

@@ -3,11 +3,11 @@
 use std::cell::RefCell;
 
 use egui::{
-    Align, Color32, FontId, Id, Layout, Rect, Response, RichText, Sense, Shape, Stroke, Ui,
-    UiBuilder, pos2, vec2,
+    Align, Color32, FontId, Id, Layout, Rect, Response, RichText, Role, Sense, Shape, Stroke, Ui,
+    UiBuilder, WidgetInfo, pos2, vec2,
 };
 
-use super::{CONTROL_HEIGHT, LABEL_MIN, NARROW, ROW_PADDING, Tone, palette};
+use super::{CONTROL_HEIGHT, LABEL_MIN, NARROW, ROW_PADDING, Tone, paint_focus_ring, palette};
 use crate::theme;
 
 /// Between a row's label and the control beside it.
@@ -446,6 +446,74 @@ pub fn group_section<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
         Sense::hover(),
     );
     inner.inner
+}
+
+/// A hairline-bordered progressive disclosure section (closed by default) for
+/// secondary or advanced controls (pinned by
+/// `widgets::tests::a_disclosure_toggles_its_body_open_and_closed`).
+pub fn disclosure<R>(
+    ui: &mut Ui,
+    id_salt: &str,
+    label: &str,
+    body: impl FnOnce(&mut Ui) -> R,
+) -> Option<R> {
+    let p = palette(ui);
+    let id = ui.scope_id().with(("vino-disclosure", id_salt));
+    let mut open = ui.data(|d| d.get_temp::<bool>(id).unwrap_or(false));
+    let width = ui.available_width();
+    let (rect, response) = ui.allocate_exact_size(vec2(width, CONTROL_HEIGHT), Sense::click());
+    if response.clicked() {
+        open = !open;
+        ui.data_mut(|d| d.insert_temp(id, open));
+    }
+    let enabled = ui.is_enabled();
+    response.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, label));
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        painter.hline(
+            rect.left()..=rect.right(),
+            rect.top(),
+            Stroke::new(1.0_f32, p.rule),
+        );
+        let color = if open || response.hovered() {
+            p.text
+        } else {
+            p.muted
+        };
+        let cx = rect.left() + 6.0;
+        let cy = rect.center().y;
+        let chevron = Stroke::new(1.6_f32, color);
+        if open {
+            painter.line_segment([pos2(cx - 3.5, cy - 2.0), pos2(cx, cy + 2.0)], chevron);
+            painter.line_segment([pos2(cx, cy + 2.0), pos2(cx + 3.5, cy - 2.0)], chevron);
+        } else {
+            painter.line_segment([pos2(cx - 2.0, cy - 3.5), pos2(cx + 2.0, cy)], chevron);
+            painter.line_segment([pos2(cx + 2.0, cy), pos2(cx - 2.0, cy + 3.5)], chevron);
+        }
+        let galley = painter.layout_no_wrap(
+            label.to_owned(),
+            FontId::new(13.0, theme::semibold()),
+            Color32::PLACEHOLDER,
+        );
+        let text_y = rect.center().y - galley.size().y / 2.0;
+        painter.galley(pos2(rect.left() + 18.0, text_y), galley, color);
+        if response.has_focus() {
+            paint_focus_ring(painter, rect, 4.0, p);
+        }
+    }
+    if open {
+        let out = ui
+            .scope(|ui| {
+                ui.add_space(4.0);
+                let out = body(ui);
+                ui.add_space(8.0);
+                out
+            })
+            .inner;
+        Some(out)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

@@ -223,3 +223,35 @@ pub fn icon_button(ui: &mut Ui, kind: ButtonKind, icon: Icon, name: &str) -> Res
     response.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, name));
     response.on_hover_text(name)
 }
+
+const COPIED_FOR: f64 = 1.5;
+
+/// A small secondary button that copies `text` to the clipboard and briefly
+/// confirms with `"Copied"` before resetting to `label` (pinned by
+/// `widgets::tests::a_copy_button_confirms_and_resets`).
+pub fn copy_button(ui: &mut Ui, text: &str, label: &str) -> Response {
+    let id = ui.scope_id().with(("vino-copy", label));
+    let now = ui.input(|i| i.time);
+    let copied_at = ui.data(|d| d.get_temp::<f64>(id));
+    let recently_copied = copied_at.is_some_and(|at| now - at < COPIED_FOR);
+    if let Some(at) = copied_at
+        && now - at < COPIED_FOR
+    {
+        let left = (COPIED_FOR - (now - at)).max(0.05);
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs_f64(left));
+    }
+    let button = if recently_copied {
+        Button::secondary("Copied").icon(Icon::Check).small()
+    } else {
+        Button::secondary(label).small()
+    };
+    let response = ui.add(button);
+    if response.clicked() {
+        ui.ctx().copy_text(text.to_owned());
+        ui.data_mut(|d| d.insert_temp(id, now));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs_f64(COPIED_FOR));
+    }
+    response
+}
