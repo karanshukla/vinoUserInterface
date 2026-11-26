@@ -547,3 +547,82 @@ fn a_disclosure_toggles_its_body_open_and_closed() {
     h.run();
     assert!(h.query_by_label("Hidden until expanded.").is_none());
 }
+
+#[test]
+fn a_split_button_runs_its_action_and_opens_its_menu() {
+    let mut h = Harness::builder().with_size((360.0, 200.0)).build_ui_state(
+        |ui, (styled, clicks, picked): &mut (bool, u32, Option<&'static str>)| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            let split = split_button(
+                ui,
+                Button::tonal("Install").small(),
+                "Install options",
+                |ui| {
+                    if ui.button("Install from source").clicked() {
+                        *picked = Some("source");
+                        ui.close();
+                    }
+                },
+            );
+            if split.primary.clicked() {
+                *clicks += 1;
+            }
+        },
+        (false, 0, None),
+    );
+    h.run();
+    h.get_by_role_and_label(Role::Button, "Install").click();
+    h.run();
+    assert_eq!(h.state().1, 1);
+    assert!(h.query_by_label("Install from source").is_none());
+
+    h.get_by_role_and_label(Role::Button, "Install options")
+        .click();
+    h.run();
+    h.get_by_role_and_label(Role::Button, "Install from source")
+        .click();
+    h.run();
+    assert_eq!(h.state().2, Some("source"));
+}
+
+#[test]
+fn a_button_group_is_a_radio_group_that_arrows_move() {
+    let mut h = Harness::builder().with_size((400.0, 120.0)).build_ui_state(
+        |ui, (styled, device): &mut (bool, Device)| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            button_group(
+                ui,
+                "Device",
+                device,
+                &[
+                    (Device::Npu, "NPU"),
+                    (Device::Gpu, "GPU"),
+                    (Device::Cpu, "CPU"),
+                ],
+            );
+        },
+        (false, Device::Npu),
+    );
+    h.run();
+    h.get_by_role_and_label(Role::RadioGroup, "Device");
+    let gpu = h.get_by_role_and_label(Role::RadioButton, "GPU");
+    assert_eq!(gpu.accesskit_node().toggled(), Some(Toggled::False));
+    gpu.click();
+    h.run();
+    assert!(h.state().1 == Device::Gpu);
+    h.get_by_role_and_label(Role::RadioButton, "GPU").focus();
+    h.run();
+    h.key_press(egui::Key::ArrowRight);
+    h.run();
+    assert!(h.state().1 == Device::Cpu);
+    h.key_press(egui::Key::ArrowRight);
+    h.run();
+    assert!(h.state().1 == Device::Npu);
+    h.key_press(egui::Key::ArrowLeft);
+    h.run();
+    assert!(h.state().1 == Device::Cpu);
+}

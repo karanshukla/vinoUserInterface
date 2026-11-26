@@ -176,19 +176,32 @@ pub fn keys(ui: &mut Ui, trigger: &str) -> Response {
     response
 }
 
-/// A thin bar of progress, `width` wide.
+/// A thin bar of progress, `width` wide, with a 2 px separation between the
+/// filled segment and the remaining track.
 pub fn progress(ui: &mut Ui, fraction: f32, width: f32) -> Response {
     let p = palette(ui);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 6.0), Sense::hover());
     a11y::decorative(ui, response.id);
     if ui.is_rect_visible(rect) {
+        let clamped = fraction.clamp(0.0, 1.0);
+        let shown = theme::animate_value(ui.ctx(), response.id, clamped, theme::MOTION_SPATIAL)
+            .clamp(0.0, 1.0);
         let painter = ui.painter();
-        painter.rect_filled(rect, 3.0, p.pressed);
-        let done = Rect::from_min_size(
-            rect.min,
-            vec2(rect.width() * fraction.clamp(0.0, 1.0), rect.height()),
-        );
-        painter.rect_filled(done, 3.0, p.primary_fill);
+        let done_w = rect.width() * shown;
+        const GAP: f32 = 2.0;
+        if done_w <= 0.5 {
+            painter.rect_filled(rect, 3.0, p.pressed);
+        } else if done_w >= rect.width() - 0.5 {
+            painter.rect_filled(rect, 3.0, p.primary_fill);
+        } else {
+            let done = Rect::from_min_size(rect.min, vec2(done_w, rect.height()));
+            painter.rect_filled(done, 3.0, p.primary_fill);
+            let rest_left = (rect.left() + done_w + GAP).min(rect.right());
+            if rect.right() - rest_left > 1.0 {
+                let rest = Rect::from_min_max(pos2(rest_left, rect.top()), rect.right_bottom());
+                painter.rect_filled(rest, 3.0, p.pressed);
+            }
+        }
     }
     response
 }

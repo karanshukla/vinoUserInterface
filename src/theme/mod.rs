@@ -48,6 +48,9 @@ pub struct Palette {
     pub primary_fill: Color32,
     /// Text on `primary_fill`.
     pub primary_text: Color32,
+    /// A tonal button's fill: sits between `primary_fill` and `field` for
+    /// contextual recommended actions without spending the page's one primary.
+    pub tonal_fill: Color32,
     /// The track of a switch that is on.
     pub on: Color32,
     /// The knob of a switch that is on, on `on`.
@@ -100,6 +103,7 @@ pub const DARK: Palette = Palette {
     accent: rgb(0x6fd496),
     primary_fill: rgb(0xecedef),
     primary_text: rgb(0x111214),
+    tonal_fill: rgb(0x282b30),
     on: rgb(0x4cc47a),
     switch_knob: rgb(0x0f1012),
     danger: rgb(0xc4362c),
@@ -127,6 +131,7 @@ pub const LIGHT: Palette = Palette {
     accent: rgb(0x166f44),
     primary_fill: rgb(0x17181a),
     primary_text: rgb(0xffffff),
+    tonal_fill: rgb(0xe6e8ec),
     on: rgb(0x1e8a50),
     switch_knob: rgb(0xffffff),
     danger: rgb(0xb3261e),
@@ -375,6 +380,43 @@ pub fn still(ctx: &egui::Context) -> bool {
     ctx.global_style().animation_time == 0.0
 }
 
+/// Duration for colour, fill and opacity transitions (no overshoot).
+pub const MOTION_EFFECTS: f32 = 0.09;
+
+/// Duration for spatial state changes: corner morphs, switch slides, active bars.
+pub const MOTION_SPATIAL: f32 = 0.16;
+
+/// Smoothly transitions a colour/opacity state (pinned by
+/// `tests::motion_helpers_snap_immediately_when_still`).
+pub fn animate_effect(ctx: &egui::Context, id: egui::Id, active: bool) -> f32 {
+    if still(ctx) {
+        f32::from(active)
+    } else {
+        ctx.animate_bool_with_time(id, active, MOTION_EFFECTS)
+    }
+}
+
+/// Smoothly transitions a spatial state such as corner radius or indicator
+/// position (pinned by `tests::motion_helpers_snap_immediately_when_still`).
+pub fn animate_spatial(ctx: &egui::Context, id: egui::Id, active: bool) -> f32 {
+    if still(ctx) {
+        f32::from(active)
+    } else {
+        ctx.animate_bool_with_time(id, active, MOTION_SPATIAL)
+    }
+}
+
+/// Smoothly interpolates a scalar value over `duration`, or snaps immediately
+/// when reduced motion is active (pinned by
+/// `tests::motion_helpers_snap_immediately_when_still`).
+pub fn animate_value(ctx: &egui::Context, id: egui::Id, target: f32, duration: f32) -> f32 {
+    if still(ctx) {
+        target
+    } else {
+        ctx.animate_value_with_time(id, target, duration)
+    }
+}
+
 /// The colours of a window's top strip.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Header {
@@ -490,6 +532,8 @@ pub(crate) mod tests {
                 primary >= 4.5,
                 "{theme:?}: primary button text is {primary:.2}:1"
             );
+            let tonal = contrast(p.text, p.tonal_fill);
+            assert!(tonal >= 4.5, "{theme:?}: tonal button text is {tonal:.2}:1");
             let destructive = contrast(p.danger_text, p.danger);
             assert!(
                 destructive >= 4.5,
@@ -553,5 +597,17 @@ pub(crate) mod tests {
             fonts.families[&FontFamily::Monospace][0],
             "JetBrainsMono-Regular"
         );
+    }
+
+    #[test]
+    fn motion_helpers_snap_immediately_when_still() {
+        let ctx = egui::Context::default();
+        ctx.all_styles_mut(|style| style.animation_time = 0.0);
+        let id = egui::Id::new("motion-test");
+        assert_eq!(animate_effect(&ctx, id, true), 1.0);
+        assert_eq!(animate_effect(&ctx, id, false), 0.0);
+        assert_eq!(animate_spatial(&ctx, id, true), 1.0);
+        assert_eq!(animate_spatial(&ctx, id, false), 0.0);
+        assert_eq!(animate_value(&ctx, id, 0.75, MOTION_SPATIAL), 0.75);
     }
 }

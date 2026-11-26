@@ -1,9 +1,9 @@
-//! Controls that hold a choice or a value: switch, segmented control, filter
-//! chip, combo box and fields.
+//! Controls that hold a choice or a value: switch, segmented control,
+//! connected button group, filter chip, combo box and fields.
 
 use egui::{
-    Align, Color32, FontId, Layout, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui,
-    WidgetInfo, pos2, vec2,
+    Align, Color32, CornerRadius, FontId, Layout, Rect, Response, Role, Sense, Stroke, StrokeKind,
+    Ui, WidgetInfo, pos2, vec2,
 };
 
 use super::{CONTROL_HEIGHT, faded, paint_focus_ring, palette, weight};
@@ -25,7 +25,9 @@ pub fn switch(ui: &mut Ui, on: &mut bool, name: &str) -> Response {
     if !ui.is_rect_visible(rect) {
         return response;
     }
-    let t = ui.ctx().animate_bool_responsive(response.id, is_on);
+    let t = theme::animate_spatial(ui.ctx(), response.id, is_on);
+    let pressed = response.is_pointer_button_down_on() && enabled;
+    let press_t = theme::animate_spatial(ui.ctx(), response.id.with("press"), pressed);
     let track = p.pressed.lerp_to_gamma(p.on, t);
     let edge = p.edge.lerp_to_gamma(p.on, t);
     let knob = p.edge.lerp_to_gamma(p.switch_knob, t);
@@ -37,8 +39,15 @@ pub fn switch(ui: &mut Ui, on: &mut bool, name: &str) -> Response {
         Stroke::new(1.0_f32, faded(edge, enabled)),
         StrokeKind::Inside,
     );
-    let x = rect.left() + 10.0 + 16.0 * t;
-    painter.circle_filled(pos2(x, rect.center().y), 7.0, faded(knob, enabled));
+    let slide_stretch = 4.0 * t * (1.0 - t) * 2.5;
+    let stretch = (press_t * 2.5 + slide_stretch).min(3.5);
+    let knob_w = 14.0 + stretch;
+    let x = (rect.left() + 10.0 + 16.0 * t).clamp(
+        rect.left() + 3.0 + knob_w / 2.0,
+        rect.right() - 3.0 - knob_w / 2.0,
+    );
+    let knob_rect = Rect::from_center_size(pos2(x, rect.center().y), vec2(knob_w, 14.0));
+    painter.rect_filled(knob_rect, 7.0, faded(knob, enabled));
     if response.has_focus() {
         paint_focus_ring(painter, rect.expand(3.0), 13.0, p);
     }
@@ -198,7 +207,169 @@ fn arrow_step(ui: &Ui) -> i32 {
     })
 }
 
-/// A filter chip: a pill that is on or off, with an optional count.
+/// Connected button group sizing and corner radii.
+const GROUP_HEIGHT: f32 = 28.0;
+const GROUP_PADDING: f32 = 24.0;
+const GROUP_GAP: f32 = 2.0;
+const GROUP_OUTER: f32 = 8.0;
+const GROUP_INNER: f32 = 2.0;
+const GROUP_PRESSED: f32 = 5.0;
+
+/// Connected mutually exclusive buttons (outer corners `8 px`, inner corners
+/// `2 px` that round out to `8 px` on the selected segment). A radio group for
+/// screen readers, with arrow keys wrapping round (pinned by
+/// `widgets::tests::a_button_group_is_a_radio_group_that_arrows_move`).
+/// True when the choice changed.
+pub fn button_group<T: Copy + PartialEq>(
+    ui: &mut Ui,
+    name: &str,
+    current: &mut T,
+    options: &[(T, &str)],
+) -> bool {
+    let enabled = ui.is_enabled();
+    let before = *current;
+    let galleys: Vec<_> = options
+        .iter()
+        .map(|(value, label)| {
+            let selected = *current == *value;
+            ui.painter().layout_no_wrap(
+                (*label).to_owned(),
+                FontId::new(13.0, weight(selected)),
+                Color32::PLACEHOLDER,
+            )
+        })
+        .collect();
+    let total = galleys
+        .iter()
+        .map(|g| g.size().x + GROUP_PADDING)
+        .sum::<f32>()
+        + GROUP_GAP * options.len().saturating_sub(1) as f32;
+    let count = options.len();
+    ui.allocate_ui_with_layout(
+        vec2(total, GROUP_HEIGHT),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
+                node.set_role(Role::RadioGroup);
+                node.set_label(name);
+            });
+            ui.spacing_mut().item_spacing.x = GROUP_GAP;
+            let mut ids = Vec::with_capacity(count);
+            let mut move_focus = None;
+            for (i, ((value, label), galley)) in options.iter().zip(galleys).enumerate() {
+                let selected = *current == *value;
+                let size = vec2(galley.size().x + GROUP_PADDING, GROUP_HEIGHT);
+                let (rect, response) = ui.allocate_exact_size(
+                    size,
+                    if enabled {
+                        Sense::click()
+                    } else {
+                        Sense::hover()
+                    },
+                );
+                ids.push(response.id);
+                response.widget_info(|| {
+                    WidgetInfo::selected(Role::RadioButton, enabled, selected, *label)
+                });
+                if enabled && response.clicked() {
+                    *current = *value;
+                }
+                if enabled && response.has_focus() {
+                    take_arrow_keys(ui, response.id);
+                    let step = arrow_step(ui);
+                    if step != 0 {
+                        let to = (i as i32 + step).rem_euclid(count as i32) as usize;
+                        *current = options[to].0;
+                        move_focus = Some(to);
+                    }
+                }
+                paint_group_button(ui, rect, &response, galley, selected, i, count, enabled);
+            }
+            if let Some(to) = move_focus {
+                ui.memory_mut(|m| m.request_focus(ids[to]));
+            }
+        },
+    );
+    *current != before
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_group_button(
+    ui: &Ui,
+    rect: Rect,
+    response: &Response,
+    galley: std::sync::Arc<egui::Galley>,
+    selected: bool,
+    index: usize,
+    count: usize,
+    enabled: bool,
+) {
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let p = palette(ui);
+    let hovered = response.hovered() && enabled;
+    let pressed = response.is_pointer_button_down_on() && enabled;
+    let select_t = theme::animate_spatial(ui.ctx(), response.id.with("select"), selected);
+    let hover_t = theme::animate_effect(ui.ctx(), response.id.with("hover"), hovered);
+    let press_t = theme::animate_spatial(ui.ctx(), response.id.with("press"), pressed);
+    let outer = (GROUP_OUTER + (GROUP_PRESSED - GROUP_OUTER) * press_t).round() as u8;
+    let inner = (GROUP_INNER + (GROUP_OUTER - GROUP_INNER) * select_t).round() as u8;
+    let left_r = if index == 0 { outer } else { inner };
+    let right_r = if index + 1 == count { outer } else { inner };
+    let radius = CornerRadius {
+        nw: left_r,
+        sw: left_r,
+        ne: right_r,
+        se: right_r,
+    };
+    let (fill, stroke, color) = if selected {
+        (p.tint, Stroke::NONE, p.accent)
+    } else {
+        let base = if hover_t <= 0.0 {
+            p.field
+        } else if hover_t >= 1.0 {
+            p.hovered()
+        } else {
+            p.field.lerp_to_gamma(p.hovered(), hover_t)
+        };
+        let fill = if press_t > 0.0 {
+            base.lerp_to_gamma(p.pressed, press_t)
+        } else {
+            base
+        };
+        let color = if hover_t > 0.0 {
+            p.muted.lerp_to_gamma(p.text, hover_t)
+        } else {
+            p.muted
+        };
+        (fill, Stroke::new(1.0_f32, p.rule_strong), color)
+    };
+    let painter = ui.painter();
+    painter.rect(
+        rect,
+        radius,
+        faded(fill, enabled),
+        Stroke::new(stroke.width, faded(stroke.color, enabled)),
+        StrokeKind::Inside,
+    );
+    painter.galley(
+        rect.center() - galley.size() / 2.0,
+        galley,
+        faded(color, enabled),
+    );
+    if response.has_focus() {
+        paint_focus_ring(painter, rect.expand(2.0), f32::from(outer) + 2.0, p);
+    }
+}
+
+/// Resting pill, selected squircle, and pressed radii for [`toggle_chip`].
+const CHIP_PILL_RADIUS: f32 = 14.0;
+const CHIP_SELECTED_RADIUS: f32 = 7.0;
+const CHIP_PRESSED_RADIUS: f32 = 5.0;
+
+/// A filter chip with an optional count: a pill when off that morphs to a
+/// squircle when on so state is carried by shape as well as colour.
 pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>) -> Response {
     let p = palette(ui);
     let enabled = ui.is_enabled();
@@ -229,25 +400,52 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
     if !ui.is_rect_visible(rect) {
         return response;
     }
+    let hovered = response.hovered() && enabled;
+    let pressed = response.is_pointer_button_down_on() && enabled;
+    let on_t = theme::animate_spatial(ui.ctx(), response.id.with("on"), is_on);
+    let hover_t = theme::animate_effect(ui.ctx(), response.id.with("hover"), hovered);
+    let press_t = theme::animate_spatial(ui.ctx(), response.id.with("press"), pressed);
+    let rest_r = CHIP_PILL_RADIUS + (CHIP_SELECTED_RADIUS - CHIP_PILL_RADIUS) * on_t;
+    let radius = rest_r + (CHIP_PRESSED_RADIUS - rest_r) * press_t;
     let painter = ui.painter();
     let (fill, stroke, color, count_color) = if is_on {
         (p.tint, Stroke::NONE, p.accent, p.accent)
-    } else if response.hovered() && enabled {
-        (
-            p.field,
-            Stroke::new(1.0_f32, p.rule_strong),
-            p.text,
-            p.muted,
-        )
     } else {
+        let fill = if hover_t <= 0.0 {
+            Color32::TRANSPARENT
+        } else if hover_t >= 1.0 {
+            p.field
+        } else {
+            Color32::TRANSPARENT.lerp_to_gamma(p.field, hover_t)
+        };
+        let stroke_color = if hover_t <= 0.0 {
+            p.rule
+        } else if hover_t >= 1.0 {
+            p.rule_strong
+        } else {
+            p.rule.lerp_to_gamma(p.rule_strong, hover_t)
+        };
+        let text_color = if hover_t <= 0.0 {
+            p.muted
+        } else if hover_t >= 1.0 {
+            p.text
+        } else {
+            p.muted.lerp_to_gamma(p.text, hover_t)
+        };
         (
-            Color32::TRANSPARENT,
-            Stroke::new(1.0_f32, p.rule),
-            p.muted,
+            fill,
+            Stroke::new(1.0_f32, stroke_color),
+            text_color,
             p.muted,
         )
     };
-    painter.rect(rect, 14.0, faded(fill, enabled), stroke, StrokeKind::Inside);
+    painter.rect(
+        rect,
+        radius,
+        faded(fill, enabled),
+        stroke,
+        StrokeKind::Inside,
+    );
     let mut x = rect.left() + 12.0;
     let y = rect.center().y - galley.size().y / 2.0;
     painter.galley(pos2(x, y), galley.clone(), faded(color, enabled));
@@ -256,7 +454,7 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
         painter.galley(pos2(x, y), count, faded(count_color, enabled));
     }
     if response.has_focus() {
-        paint_focus_ring(painter, rect.expand(2.0), 16.0, p);
+        paint_focus_ring(painter, rect.expand(2.0), radius + 2.0, p);
     }
     response
 }

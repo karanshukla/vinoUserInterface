@@ -173,6 +173,7 @@ palette with `theme::palette(ctx)`.
 | `text`, `muted` | Primary and secondary text (both at least 4.5:1 on every background) |
 | `accent` | Links, active navigation item icon, and focus rings |
 | `primary_fill`, `primary_text` | Primary button (dark ink on light theme, near-white on dark theme) |
+| `tonal_fill` | Tonal button fill for contextual recommended actions (sits between `primary_fill` and `field`) |
 | `on`, `switch_knob` | Active switch track and knob |
 | `danger`, `danger_text` | Destructive action button |
 | `tint` | Selected row, active navigation item, or active filter chip |
@@ -220,7 +221,7 @@ commands.
 | Header window title | 16 | Semibold | `window_title` |
 | Row title | 14 | Medium | `Row` |
 | Body text | 14 | Regular | `ui.label` |
-| Button label | 13.5 (12.5 small) | Medium (Semibold for primary) | `Button` |
+| Button label | 13.5 (12.5 small) | Medium (Semibold for primary, tonal, destructive) | `Button` |
 | Help text and captions | 12.5 | Regular, muted | `small`, `group_help` |
 | Group label | 13, sentence case | Semibold, muted | `group_label` |
 | Tag | 10.5, uppercase | Semibold | `tag` |
@@ -244,7 +245,7 @@ automatically.
 | Tag padding | 6 px horizontal, 16 px tall |
 | Sidebar | 10 px horizontal margin; nav icon centred at 18 px, text at 36 px; 24 px logo |
 | Default item spacing | 8 px |
-| Corner radius | 8 px for controls; 6 px on trailing corners of banners; 10 px for menus and search fields |
+| Corner radius | 8 px for controls (morphs to 5 px on press); 2 px inner corners on split buttons and connected button groups; 14 px pill to 7 px squircle on active `toggle_chip`; 6 px on trailing corners of banners; 10 px for menus and search fields |
 
 Use spacing values from the scale `2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28`,
 defaulting to `8` unless another step is needed.
@@ -257,10 +258,13 @@ around it to meet WCAG 2.5.8 (verified by `tests/a11y.rs`).
 | Use case | Recommended widget | Avoid |
 |---|---|---|
 | On/off setting | `switch` inside a `Row` | Checkbox |
-| 2 to 4 short mutually exclusive options | `segmented` | Radio buttons or combo box |
+| 2 to 4 short mutually exclusive options (settings row) | `segmented` | Radio buttons or combo box |
+| 2 to 4 mutually exclusive filters or view modes | `button_group` | Multiple `toggle_chip`s or combo box |
 | 5 or more options, or long option names | `combo` | `segmented` |
 | Text input | `field` | |
 | Primary action for a view | `Button::primary` (at most one per view) | Multiple primary buttons |
+| Contextual recommended action (per-card install/update) | `Button::tonal` | Additional `Button::primary` buttons |
+| Action with a sensible default plus alternate modes | `split_button` | Button beside a separate `segmented` picker |
 | Standard secondary actions | `Button::secondary` | |
 | Low-emphasis actions beside others (Cancel, Dismiss) | `Button::ghost` | |
 | Destructive action | `Button::destructive` inside an inline confirmation | Exposed red button on a settings page |
@@ -438,12 +442,22 @@ icons for light and dark themes.
 
 ## Motion
 
-Use motion strictly for state feedback: switch slides, hover fills, and a
-10 fps spinner during genuine waits. Avoid pulsing, glowing, blinking, or
-bouncing indicators, animated status dots, cycling ellipses, and shimmer
-placeholders. When desktop reduced motion is enabled, `theme::still` returns
-`true`, transitions become immediate, and the spinner remains static. Any custom
-animation must check `theme::still`.
+Use motion strictly for crisp, utilitarian state feedback (no overshoot or idle
+animation):
+
+- **Effects (`theme::animate_effect`, `MOTION_EFFECTS` = 90 ms):** hover fills,
+  border brightening, and text emphasis transitions.
+- **Spatial (`theme::animate_spatial`, `MOTION_SPATIAL` = 160 ms):** switch
+  slides with subtle knob stretch, pressed corner-radius morphs (`8 px -> 5 px`),
+  active `toggle_chip` pill-to-squircle morphs, tab underline reveals,
+  disclosure chevron rotations, and smooth `progress` updates.
+- **Waits:** a 10 fps `spinner` only during genuine indeterminate waits.
+
+Avoid pulsing, glowing, blinking, or bouncing indicators, animated status dots,
+cycling ellipses, and shimmer placeholders. When desktop reduced motion is
+enabled, `theme::still` returns `true`, all motion helpers snap immediately,
+and the spinner remains static. Any custom animation must check `theme::still`
+or use `theme::animate_effect` / `theme::animate_spatial` / `theme::animate_value`.
 
 ## Accessibility
 

@@ -11,8 +11,8 @@
 //!   banners, nav items and tabs, and a spinner for real waits that stands
 //!   still when motion is reduced.
 //! - [`icons`]: a 16 px stroke icon set painted from SVG paths.
-//! - [`logo`]: the app logos (Search, Whisper, Speak, AuthFace), painted so
-//!   they stay sharp at any scale.
+//! - [`logo`]: the vinoPilot app logos, painted so they stay sharp at any
+//!   scale.
 //! - [`file_tile`]: a file's tile for a list, drawn like the logos, with an
 //!   accent that says which format it is.
 //! - [`a11y`]: names, roles and headings for screen readers, which egui's
@@ -73,4 +73,4 @@ pub use icons::Icon;
 pub use theme::{Palette, palette};
 pub use tray::MenuIcon;
 #[cfg(feature = "egui")]
-pub use widgets::{Button, ButtonKind, ChipKind, Column, Row, Tone};
+pub use widgets::{Button, ButtonKind, ChipKind, Column, Row, SplitResponse, Tone};

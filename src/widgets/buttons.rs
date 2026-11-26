@@ -1,8 +1,8 @@
-//! The four kinds of button.
+//! The five kinds of button, plus connected split buttons.
 
 use egui::{
-    Color32, FontFamily, FontId, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, WidgetInfo,
-    pos2, vec2,
+    Align, Color32, CornerRadius, FontFamily, FontId, Layout, Rect, Response, Role, Sense, Stroke,
+    StrokeKind, Ui, WidgetInfo, pos2, vec2,
 };
 
 use super::{CONTROL_HEIGHT, ICON, SMALL_HEIGHT, faded, paint_focus_ring, palette};
@@ -13,6 +13,9 @@ use crate::theme::{self, Palette};
 pub enum ButtonKind {
     /// Ink on light, near-white on dark: one per view.
     Primary,
+    /// Soft filled container between `Primary` and `Secondary` for contextual
+    /// recommended actions without spending the view's single primary button.
+    Tonal,
     /// Field-coloured with a rule.
     Secondary,
     /// Bare text until hovered.
@@ -23,67 +26,110 @@ pub enum ButtonKind {
 
 /// Between a button's icon and the text after it.
 const ICON_TEXT_GAP: f32 = 6.0;
+/// Resting and pressed corner radii for stateful corner morphing.
+const REST_RADIUS: f32 = 8.0;
+const PRESSED_RADIUS: f32 = 5.0;
+/// Inner corner radius and gap between halves of a connected split button.
+const SPLIT_INNER_RADIUS: u8 = 2;
+const SPLIT_GAP: f32 = 2.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Corners {
+    All,
+    Leading,
+    Trailing,
+}
+
+impl Corners {
+    fn radius(self, outer: u8) -> CornerRadius {
+        match self {
+            Corners::All => CornerRadius::same(outer),
+            Corners::Leading => CornerRadius {
+                nw: outer,
+                sw: outer,
+                ne: SPLIT_INNER_RADIUS,
+                se: SPLIT_INNER_RADIUS,
+            },
+            Corners::Trailing => CornerRadius {
+                nw: SPLIT_INNER_RADIUS,
+                sw: SPLIT_INNER_RADIUS,
+                ne: outer,
+                se: outer,
+            },
+        }
+    }
+}
+
+fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    if t <= 0.0 {
+        a
+    } else if t >= 1.0 {
+        b
+    } else {
+        a.lerp_to_gamma(b, t)
+    }
+}
 
 impl ButtonKind {
-    /// The fill, the outline and the text colour, at rest, hovered or pressed.
-    fn look(self, p: &Palette, pressed: bool, hovered: bool) -> (Color32, Stroke, Color32) {
+    /// The fill, outline and text colour at rest, hovered and pressed.
+    fn states(self, p: &Palette) -> ((Color32, Color32, Color32), Stroke, (Color32, Color32)) {
         match self {
             ButtonKind::Primary => (
-                if pressed {
-                    p.primary_fill.lerp_to_gamma(p.bg, 0.22)
-                } else if hovered {
-                    p.primary_fill.lerp_to_gamma(p.bg, 0.12)
-                } else {
-                    p.primary_fill
-                },
+                (
+                    p.primary_fill,
+                    p.primary_fill.lerp_to_gamma(p.bg, 0.12),
+                    p.primary_fill.lerp_to_gamma(p.bg, 0.22),
+                ),
                 Stroke::NONE,
-                p.primary_text,
+                (p.primary_text, p.primary_text),
+            ),
+            ButtonKind::Tonal => (
+                (
+                    p.tonal_fill,
+                    p.tonal_fill.lerp_to_gamma(p.primary_fill, 0.08),
+                    p.tonal_fill.lerp_to_gamma(p.primary_fill, 0.16),
+                ),
+                Stroke::NONE,
+                (p.text, p.text),
             ),
             ButtonKind::Secondary => (
-                if pressed {
-                    p.pressed
-                } else if hovered {
-                    p.hovered()
-                } else {
-                    p.field
-                },
+                (p.field, p.hovered(), p.pressed),
                 Stroke::new(1.0_f32, p.rule_strong),
-                p.text,
+                (p.text, p.text),
             ),
             ButtonKind::Ghost => (
-                if pressed {
-                    p.pressed
-                } else if hovered {
-                    p.field
-                } else {
-                    Color32::TRANSPARENT
-                },
+                (Color32::TRANSPARENT, p.field, p.pressed),
                 Stroke::NONE,
-                if pressed || hovered { p.text } else { p.muted },
+                (p.muted, p.text),
             ),
             ButtonKind::Destructive => (
-                if pressed {
-                    p.danger.lerp_to_gamma(Color32::BLACK, 0.18)
-                } else if hovered {
-                    p.danger.lerp_to_gamma(Color32::BLACK, 0.1)
-                } else {
-                    p.danger
-                },
+                (
+                    p.danger,
+                    p.danger.lerp_to_gamma(Color32::BLACK, 0.1),
+                    p.danger.lerp_to_gamma(Color32::BLACK, 0.18),
+                ),
                 Stroke::NONE,
-                p.danger_text,
+                (p.danger_text, p.danger_text),
             ),
         }
     }
 
+    fn look(self, p: &Palette, hover_t: f32, press_t: f32) -> (Color32, Stroke, Color32) {
+        let ((rest, hovered, pressed), stroke, (rest_text, active_text)) = self.states(p);
+        let fill = lerp_color(lerp_color(rest, hovered, hover_t), pressed, press_t);
+        let text = lerp_color(rest_text, active_text, hover_t.max(press_t));
+        (fill, stroke, text)
+    }
+
     fn text_weight(self) -> FontFamily {
         match self {
-            ButtonKind::Primary | ButtonKind::Destructive => theme::semibold(),
+            ButtonKind::Primary | ButtonKind::Tonal | ButtonKind::Destructive => theme::semibold(),
             ButtonKind::Secondary | ButtonKind::Ghost => theme::medium(),
         }
     }
 }
 
-/// A button in one of the four kinds, 30 tall (26 small), with an optional
+/// A button in one of the five kinds, 30 tall (26 small), with an optional
 /// icon before its text.
 pub struct Button {
     kind: ButtonKind,
@@ -91,6 +137,7 @@ pub struct Button {
     icon: Option<Icon>,
     small: bool,
     min_width: f32,
+    corners: Corners,
 }
 
 impl Button {
@@ -101,11 +148,16 @@ impl Button {
             icon: None,
             small: false,
             min_width: 0.0,
+            corners: Corners::All,
         }
     }
 
     pub fn primary(text: impl Into<String>) -> Self {
         Button::new(ButtonKind::Primary, text)
+    }
+
+    pub fn tonal(text: impl Into<String>) -> Self {
+        Button::new(ButtonKind::Tonal, text)
     }
 
     pub fn secondary(text: impl Into<String>) -> Self {
@@ -134,12 +186,8 @@ impl Button {
         self.min_width = width;
         self
     }
-}
 
-impl egui::Widget for Button {
-    fn ui(self, ui: &mut Ui) -> Response {
-        let p = palette(ui);
-        let enabled = ui.is_enabled();
+    fn metrics(&self, ui: &Ui) -> (f32, f32, f32, f32, std::sync::Arc<egui::Galley>) {
         let (height, pad, size) = if self.small {
             (SMALL_HEIGHT, 10.0, 12.5)
         } else {
@@ -160,12 +208,20 @@ impl egui::Widget for Button {
             (true, false) => ICON,
             (false, _) => 0.0,
         };
-        let width = (text_w + icon_w + 2.0 * pad).max(self.min_width);
         let width = if self.text.is_empty() && self.icon.is_some() {
             height
         } else {
-            width
+            (text_w + icon_w + 2.0 * pad).max(self.min_width)
         };
+        (width, height, text_w, icon_w, galley)
+    }
+}
+
+impl egui::Widget for Button {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let p = palette(ui);
+        let enabled = ui.is_enabled();
+        let (width, height, text_w, icon_w, galley) = self.metrics(ui);
         let (rect, response) = ui.allocate_exact_size(
             vec2(width, height),
             if enabled {
@@ -179,13 +235,17 @@ impl egui::Widget for Button {
         if !ui.is_rect_visible(rect) {
             return response;
         }
-        let pressed = response.is_pointer_button_down_on();
+        let pressed = response.is_pointer_button_down_on() && enabled;
         let hovered = response.hovered() && enabled;
-        let (fill, stroke, color) = self.kind.look(p, pressed, hovered);
+        let hover_t = theme::animate_effect(ui.ctx(), response.id.with("hover"), hovered);
+        let press_t = theme::animate_spatial(ui.ctx(), response.id.with("press"), pressed);
+        let (fill, stroke, color) = self.kind.look(p, hover_t, press_t);
+        let outer_r = (REST_RADIUS + (PRESSED_RADIUS - REST_RADIUS) * press_t).round() as u8;
+        let radius = self.corners.radius(outer_r);
         let painter = ui.painter();
         painter.rect(
             rect,
-            8.0,
+            radius,
             faded(fill, enabled),
             Stroke::new(stroke.width, faded(stroke.color, enabled)),
             StrokeKind::Inside,
@@ -210,10 +270,63 @@ impl egui::Widget for Button {
             );
         }
         if response.has_focus() {
-            paint_focus_ring(painter, rect.expand(2.0), 10.0, p);
+            paint_focus_ring(painter, rect.expand(2.0), f32::from(outer_r) + 2.0, p);
         }
         response
     }
+}
+
+/// What [`split_button`] returns: the leading action's response, the trailing
+/// chevron button's response, and whatever the menu closure returned while open.
+pub struct SplitResponse<R> {
+    pub primary: Response,
+    pub menu: Response,
+    pub menu_output: Option<R>,
+}
+
+/// A leading action button paired with a connected chevron menu trigger
+/// (outer corners `8 px`, inner corners `2 px`, `2 px` gap). Sized up front
+/// so it keeps left-to-right order inside a [`crate::Row`] (pinned by
+/// `widgets::tests::a_split_button_runs_its_action_and_opens_its_menu`).
+pub fn split_button<R>(
+    ui: &mut Ui,
+    mut button: Button,
+    menu_name: &str,
+    menu: impl FnOnce(&mut Ui) -> R,
+) -> SplitResponse<R> {
+    let kind = button.kind;
+    let small = button.small;
+    button.corners = Corners::Leading;
+    let (lead_w, height, _, _, _) = button.metrics(ui);
+    let trigger_w = height;
+    let total_w = lead_w + SPLIT_GAP + trigger_w;
+    let mut trigger = Button::new(kind, "").icon(Icon::ChevronDown);
+    if small {
+        trigger = trigger.small();
+    }
+    trigger.corners = Corners::Trailing;
+
+    ui.allocate_ui_with_layout(
+        vec2(total_w, height),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.spacing_mut().item_spacing.x = SPLIT_GAP;
+            let primary = ui.add(button);
+            let menu_btn = ui.add(trigger);
+            let enabled = ui.is_enabled();
+            menu_btn.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, menu_name));
+            let menu_btn = menu_btn.on_hover_text(menu_name);
+            let menu_output = egui::Popup::menu(&menu_btn)
+                .show(menu)
+                .map(|inner| inner.inner);
+            SplitResponse {
+                primary,
+                menu: menu_btn,
+                menu_output,
+            }
+        },
+    )
+    .inner
 }
 
 /// An icon-only button, square, named for a screen reader.

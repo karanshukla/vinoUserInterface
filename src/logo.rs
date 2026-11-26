@@ -22,10 +22,30 @@ pub const WHISPER_BUBBLE: &str =
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Logo {
+    Pilot,
     Search,
     Whisper,
     Speak,
     AuthFace,
+    OpenEffects,
+    Pop,
+    Watch,
+}
+
+impl Logo {
+    /// The logo for any [`crate::App`].
+    pub fn for_app(app: crate::App) -> Self {
+        match app {
+            crate::App::Pilot => Logo::Pilot,
+            crate::App::Whisper => Logo::Whisper,
+            crate::App::AuthFace => Logo::AuthFace,
+            crate::App::OpenEffects => Logo::OpenEffects,
+            crate::App::Pop => Logo::Pop,
+            crate::App::Speak => Logo::Speak,
+            crate::App::Search => Logo::Search,
+            crate::App::Watch => Logo::Watch,
+        }
+    }
 }
 
 /// The logo in a `size` square, hidden from screen readers: the app's name
@@ -37,6 +57,15 @@ pub fn logo(ui: &mut Ui, which: Logo, size: f32) -> Response {
         paint(ui.painter(), rect, which);
     }
     response
+}
+
+/// The logo for `app` in a `size` square.
+pub fn app(ui: &mut Ui, app: crate::App, size: f32) -> Response {
+    logo(ui, Logo::for_app(app), size)
+}
+
+pub fn pilot(ui: &mut Ui, size: f32) -> Response {
+    logo(ui, Logo::Pilot, size)
 }
 
 pub fn search(ui: &mut Ui, size: f32) -> Response {
@@ -53,6 +82,18 @@ pub fn speak(ui: &mut Ui, size: f32) -> Response {
 
 pub fn authface(ui: &mut Ui, size: f32) -> Response {
     logo(ui, Logo::AuthFace, size)
+}
+
+pub fn open_effects(ui: &mut Ui, size: f32) -> Response {
+    logo(ui, Logo::OpenEffects, size)
+}
+
+pub fn pop(ui: &mut Ui, size: f32) -> Response {
+    logo(ui, Logo::Pop, size)
+}
+
+pub fn watch(ui: &mut Ui, size: f32) -> Response {
+    logo(ui, Logo::Watch, size)
 }
 
 /// The tile's width in SVG units: it fills 4 to 60 of a 64-unit box.
@@ -101,7 +142,18 @@ fn from_site_tile(k: f32, at: impl Fn(f32, f32) -> Pos2) -> (f32, impl Fn(f32, f
 
 pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
     let (k, at) = tile(painter, rect);
+    let box_ = |x: f32, y: f32, w: f32, h: f32| Rect::from_min_max(at(x, y), at(x + w, y + h));
     match which {
+        Logo::Pilot => {
+            for (x, y, color) in [
+                (17.0, 17.0, WHITE),
+                (34.0, 17.0, WHITE),
+                (17.0, 34.0, WHITE),
+                (34.0, 34.0, GREEN),
+            ] {
+                painter.rect_filled(box_(x, y, 13.0, 13.0), 3.0 * k, color);
+            }
+        }
         Logo::Search => {
             let (k, at) = from_site_tile(k, at);
             let box_ =
@@ -164,6 +216,44 @@ pub fn paint(painter: &Painter, rect: Rect, which: Logo) {
             );
             painter.circle_stroke(at(24.0, 32.0), 5.0 * k, Stroke::new(4.0 * k, WHITE));
             painter.circle_filled(at(41.0, 32.0), 4.5 * k, GREEN);
+        }
+        Logo::OpenEffects => {
+            let blur_bar = Color32::from_rgb(0xa0, 0xa4, 0xac).gamma_multiply(0.45);
+            for y in [19.0, 29.0, 39.0] {
+                painter.rect_filled(box_(13.0, y, 38.0, 6.0), 3.0 * k, blur_bar);
+            }
+            painter.circle_filled(at(32.0, 26.0), 7.0 * k, GREEN);
+            painter.rect_filled(box_(21.0, 35.0, 22.0, 12.0), 6.0 * k, GREEN);
+            let corner = Stroke::new(3.0 * k, WHITE);
+            for pts in [
+                [at(11.5, 24.5), at(11.5, 17.5), at(18.5, 17.5)],
+                [at(52.5, 24.5), at(52.5, 17.5), at(45.5, 17.5)],
+                [at(11.5, 39.5), at(11.5, 46.5), at(18.5, 46.5)],
+                [at(52.5, 39.5), at(52.5, 46.5), at(45.5, 46.5)],
+            ] {
+                painter.add(Shape::line(pts.to_vec(), corner));
+            }
+        }
+        Logo::Pop => {
+            for x in [17.0, 28.0, 39.0] {
+                painter.rect_filled(box_(x, 20.0, 8.0, 8.0), 2.5 * k, WHITE);
+            }
+            painter.rect_filled(box_(12.0, 36.0, 6.0, 6.0), 3.0 * k, FRAME);
+            painter.rect_filled(box_(21.0, 36.0, 22.0, 6.0), 3.0 * k, GREEN);
+            painter.rect_filled(box_(46.0, 36.0, 6.0, 6.0), 3.0 * k, FRAME);
+        }
+        Logo::Watch => {
+            let gauge = [
+                ("M19.98 44.02A17 17 0 1 1 44.02 44.02", FRAME),
+                ("M19.98 44.02A17 17 0 0 1 43.04 19.07", GREEN),
+            ];
+            for (path, color) in gauge {
+                for sub in icons::parse(path) {
+                    let points: Vec<Pos2> = sub.points.iter().map(|p| at(p.x, p.y)).collect();
+                    capped(painter, points, Stroke::new(7.0 * k, color));
+                }
+            }
+            painter.circle_filled(at(32.0, 32.0), 4.0 * k, GREEN);
         }
     }
 }

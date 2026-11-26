@@ -482,14 +482,14 @@ pub fn disclosure<R>(
         };
         let cx = rect.left() + 6.0;
         let cy = rect.center().y;
+        let open_t = theme::animate_spatial(ui.ctx(), id.with("chevron"), open);
+        let angle = open_t * std::f32::consts::FRAC_PI_2;
+        let (sin, cos) = angle.sin_cos();
+        let rot = |dx: f32, dy: f32| pos2(cx + dx * cos - dy * sin, cy + dx * sin + dy * cos);
         let chevron = Stroke::new(1.6_f32, color);
-        if open {
-            painter.line_segment([pos2(cx - 3.5, cy - 2.0), pos2(cx, cy + 2.0)], chevron);
-            painter.line_segment([pos2(cx, cy + 2.0), pos2(cx + 3.5, cy - 2.0)], chevron);
-        } else {
-            painter.line_segment([pos2(cx - 2.0, cy - 3.5), pos2(cx + 2.0, cy)], chevron);
-            painter.line_segment([pos2(cx + 2.0, cy), pos2(cx - 2.0, cy + 3.5)], chevron);
-        }
+        let tip = rot(2.0, 0.0);
+        painter.line_segment([rot(-2.0, -3.5), tip], chevron);
+        painter.line_segment([tip, rot(-2.0, 3.5)], chevron);
         let galley = painter.layout_no_wrap(
             label.to_owned(),
             FontId::new(13.0, theme::semibold()),
