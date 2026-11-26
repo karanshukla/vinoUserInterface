@@ -626,3 +626,111 @@ fn a_button_group_is_a_radio_group_that_arrows_move() {
     h.run();
     assert!(h.state().1 == Device::Cpu);
 }
+
+#[test]
+fn content_inset_scales_smoothly_without_shrinking_the_page() {
+    assert_eq!(content_inset(340.0), PAGE_INSET_MIN);
+    assert_eq!(content_inset(SIDEBAR_FROM), PAGE_INSET);
+    assert_eq!(content_inset(FLUID_TO), PAGE_INSET_MAX);
+    assert_eq!(content_inset(4000.0), PAGE_INSET_MAX);
+    let page = |w: f32| w - content_inset(w);
+    let mut last = page(340.0);
+    let mut w = 340.0;
+    while w < 2400.0 {
+        w += 1.0;
+        assert!(page(w) >= last, "{w}: the page doesn't shrink");
+        last = page(w);
+    }
+}
+
+#[test]
+fn size_class_matches_window_breakpoints() {
+    assert_eq!(SizeClass::of(340.0), SizeClass::Compact);
+    assert_eq!(SizeClass::of(COMPACT_MAX - 1.0), SizeClass::Compact);
+    assert!(SizeClass::of(420.0).is_compact());
+    assert_eq!(SizeClass::of(COMPACT_MAX), SizeClass::Medium);
+    assert_eq!(SizeClass::of(MEDIUM_MAX - 1.0), SizeClass::Medium);
+    assert_eq!(SizeClass::of(MEDIUM_MAX), SizeClass::Expanded);
+    assert_eq!(SizeClass::of(1440.0), SizeClass::Expanded);
+}
+
+#[test]
+fn grid_columns_adapts_from_one_to_max() {
+    let min_w = 268.0;
+    let gap = 14.0;
+    assert_eq!(grid_columns(200.0, min_w, gap, 4), 1);
+    assert_eq!(grid_columns(2.0 * min_w + gap - 1.0, min_w, gap, 4), 1);
+    assert_eq!(grid_columns(2.0 * min_w + gap, min_w, gap, 4), 2);
+    assert_eq!(grid_columns(3.0 * min_w + 2.0 * gap, min_w, gap, 4), 3);
+    assert_eq!(grid_columns(4.0 * min_w + 3.0 * gap, min_w, gap, 4), 4);
+    assert_eq!(grid_columns(2400.0, min_w, gap, 4), 4);
+    assert_eq!(grid_columns(2400.0, min_w, gap, 3), 3);
+}
+
+#[test]
+fn a_responsive_bar_stacks_below_its_breakpoint() {
+    for (width, expect_stacked) in [(640.0, false), (420.0, true)] {
+        let mut h = Harness::builder()
+            .with_size((outer(width), 160.0))
+            .build_ui_state(
+                |ui, styled: &mut bool| {
+                    if styling_first_frame(ui, styled) {
+                        return;
+                    }
+                    responsive_bar(
+                        ui,
+                        500.0,
+                        |ui| {
+                            title(ui, "Catalog");
+                        },
+                        |ui| {
+                            ui.add(Button::secondary("Check").small());
+                        },
+                    );
+                },
+                false,
+            );
+        h.run_steps(4);
+        let heading = h.get_by_role_and_label(Role::Heading, "Catalog").rect();
+        let button = h.get_by_role_and_label(Role::Button, "Check").rect();
+        if expect_stacked {
+            assert!(button.min.y >= heading.max.y - 1.0, "{width}: stacked");
+        } else {
+            assert!(
+                button.min.x > heading.max.x
+                    && (button.center().y - heading.center().y).abs() < 10.0,
+                "{width}: side by side"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_button_group_wraps_when_narrow() {
+    let mut h = Harness::builder()
+        .with_size((outer(180.0), 140.0))
+        .build_ui_state(
+            |ui, (styled, choice): &mut (bool, usize)| {
+                if styling_first_frame(ui, styled) {
+                    return;
+                }
+                button_group(
+                    ui,
+                    "Filter",
+                    choice,
+                    &[(0, "All (9)"), (1, "Installed (5)"), (2, "Updates (2)")],
+                );
+            },
+            (false, 0),
+        );
+    h.run_steps(4);
+    let all = h.get_by_role_and_label(Role::RadioButton, "All (9)").rect();
+    let updates = h
+        .get_by_role_and_label(Role::RadioButton, "Updates (2)")
+        .rect();
+    assert!(updates.min.y > all.max.y - 1.0, "wrapped onto next line");
+    assert!(
+        updates.max.x <= outer(180.0) + 1.0,
+        "stays inside narrow window"
+    );
+}

@@ -6,7 +6,7 @@ use egui::{
     Ui, WidgetInfo, pos2, vec2,
 };
 
-use super::{CONTROL_HEIGHT, faded, paint_focus_ring, palette, weight};
+use super::{CONTROL_HEIGHT, faded, lerp_color, paint_focus_ring, palette, weight};
 use crate::icons::{self, Icon};
 use crate::theme;
 
@@ -210,14 +210,16 @@ fn arrow_step(ui: &Ui) -> i32 {
 /// Connected button group sizing and corner radii.
 const GROUP_HEIGHT: f32 = 28.0;
 const GROUP_PADDING: f32 = 24.0;
+const GROUP_COMPACT_PADDING: f32 = 14.0;
 const GROUP_GAP: f32 = 2.0;
 const GROUP_OUTER: f32 = 8.0;
 const GROUP_INNER: f32 = 2.0;
 const GROUP_PRESSED: f32 = 5.0;
 
 /// Connected mutually exclusive buttons (outer corners `8 px`, inner corners
-/// `2 px` that round out to `8 px` on the selected segment). A radio group for
-/// screen readers, with arrow keys wrapping round (pinned by
+/// `2 px` that round out to `8 px` on the selected segment). Automatically
+/// tightens padding and wraps cleanly on narrow windows or at 2x text scale.
+/// A radio group for screen readers, with arrow keys wrapping round (pinned by
 /// `widgets::tests::a_button_group_is_a_radio_group_that_arrows_move`).
 /// True when the choice changed.
 pub fn button_group<T: Copy + PartialEq>(
@@ -239,57 +241,77 @@ pub fn button_group<T: Copy + PartialEq>(
             )
         })
         .collect();
-    let total = galleys
-        .iter()
-        .map(|g| g.size().x + GROUP_PADDING)
-        .sum::<f32>()
-        + GROUP_GAP * options.len().saturating_sub(1) as f32;
     let count = options.len();
-    ui.allocate_ui_with_layout(
-        vec2(total, GROUP_HEIGHT),
-        Layout::left_to_right(Align::Center),
-        |ui| {
-            ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
-                node.set_role(Role::RadioGroup);
-                node.set_label(name);
-            });
-            ui.spacing_mut().item_spacing.x = GROUP_GAP;
-            let mut ids = Vec::with_capacity(count);
-            let mut move_focus = None;
-            for (i, ((value, label), galley)) in options.iter().zip(galleys).enumerate() {
-                let selected = *current == *value;
-                let size = vec2(galley.size().x + GROUP_PADDING, GROUP_HEIGHT);
-                let (rect, response) = ui.allocate_exact_size(
-                    size,
-                    if enabled {
-                        Sense::click()
-                    } else {
-                        Sense::hover()
-                    },
-                );
-                ids.push(response.id);
-                response.widget_info(|| {
-                    WidgetInfo::selected(Role::RadioButton, enabled, selected, *label)
-                });
-                if enabled && response.clicked() {
-                    *current = *value;
-                }
-                if enabled && response.has_focus() {
-                    take_arrow_keys(ui, response.id);
-                    let step = arrow_step(ui);
-                    if step != 0 {
-                        let to = (i as i32 + step).rem_euclid(count as i32) as usize;
-                        *current = options[to].0;
-                        move_focus = Some(to);
-                    }
-                }
-                paint_group_button(ui, rect, &response, galley, selected, i, count, enabled);
+    let gaps = GROUP_GAP * count.saturating_sub(1) as f32;
+    let sum_with = |pad: f32| galleys.iter().map(|g| g.size().x + pad).sum::<f32>() + gaps;
+    let avail = ui.available_width();
+    let pad = if sum_with(GROUP_PADDING) <= avail {
+        GROUP_PADDING
+    } else {
+        GROUP_COMPACT_PADDING
+    };
+    let total = sum_with(pad);
+    let wraps = total > avail;
+
+    let draw = |ui: &mut Ui| {
+        ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
+            node.set_role(Role::RadioGroup);
+            node.set_label(name);
+        });
+        ui.spacing_mut().item_spacing = vec2(GROUP_GAP, 4.0);
+        let mut ids = Vec::with_capacity(count);
+        let mut move_focus = None;
+        for (i, ((value, label), galley)) in options.iter().zip(galleys).enumerate() {
+            let selected = *current == *value;
+            let size = vec2(galley.size().x + pad, GROUP_HEIGHT);
+            let (rect, response) = ui.allocate_exact_size(
+                size,
+                if enabled {
+                    Sense::click()
+                } else {
+                    Sense::hover()
+                },
+            );
+            ids.push(response.id);
+            response
+                .widget_info(|| WidgetInfo::selected(Role::RadioButton, enabled, selected, *label));
+            if enabled && response.clicked() {
+                *current = *value;
             }
-            if let Some(to) = move_focus {
-                ui.memory_mut(|m| m.request_focus(ids[to]));
+            if enabled && response.has_focus() {
+                take_arrow_keys(ui, response.id);
+                let step = arrow_step(ui);
+                if step != 0 {
+                    let to = (i as i32 + step).rem_euclid(count as i32) as usize;
+                    *current = options[to].0;
+                    move_focus = Some(to);
+                }
             }
-        },
-    );
+            paint_group_button(
+                ui,
+                rect,
+                &response,
+                galley,
+                selected,
+                if wraps { 0 } else { i },
+                if wraps { 1 } else { count },
+                enabled,
+            );
+        }
+        if let Some(to) = move_focus {
+            ui.memory_mut(|m| m.request_focus(ids[to]));
+        }
+    };
+
+    if wraps {
+        ui.horizontal_wrapped(draw);
+    } else {
+        ui.allocate_ui_with_layout(
+            vec2(total, GROUP_HEIGHT),
+            Layout::left_to_right(Align::Center),
+            draw,
+        );
+    }
     *current != before
 }
 
@@ -326,23 +348,9 @@ fn paint_group_button(
     let (fill, stroke, color) = if selected {
         (p.tint, Stroke::NONE, p.accent)
     } else {
-        let base = if hover_t <= 0.0 {
-            p.field
-        } else if hover_t >= 1.0 {
-            p.hovered()
-        } else {
-            p.field.lerp_to_gamma(p.hovered(), hover_t)
-        };
-        let fill = if press_t > 0.0 {
-            base.lerp_to_gamma(p.pressed, press_t)
-        } else {
-            base
-        };
-        let color = if hover_t > 0.0 {
-            p.muted.lerp_to_gamma(p.text, hover_t)
-        } else {
-            p.muted
-        };
+        let base = lerp_color(p.field, p.hovered(), hover_t);
+        let fill = lerp_color(base, p.pressed, press_t);
+        let color = lerp_color(p.muted, p.text, hover_t);
         (fill, Stroke::new(1.0_f32, p.rule_strong), color)
     };
     let painter = ui.painter();
@@ -411,27 +419,9 @@ pub fn toggle_chip(ui: &mut Ui, on: &mut bool, label: &str, count: Option<usize>
     let (fill, stroke, color, count_color) = if is_on {
         (p.tint, Stroke::NONE, p.accent, p.accent)
     } else {
-        let fill = if hover_t <= 0.0 {
-            Color32::TRANSPARENT
-        } else if hover_t >= 1.0 {
-            p.field
-        } else {
-            Color32::TRANSPARENT.lerp_to_gamma(p.field, hover_t)
-        };
-        let stroke_color = if hover_t <= 0.0 {
-            p.rule
-        } else if hover_t >= 1.0 {
-            p.rule_strong
-        } else {
-            p.rule.lerp_to_gamma(p.rule_strong, hover_t)
-        };
-        let text_color = if hover_t <= 0.0 {
-            p.muted
-        } else if hover_t >= 1.0 {
-            p.text
-        } else {
-            p.muted.lerp_to_gamma(p.text, hover_t)
-        };
+        let fill = lerp_color(Color32::TRANSPARENT, p.field, hover_t);
+        let stroke_color = lerp_color(p.rule, p.rule_strong, hover_t);
+        let text_color = lerp_color(p.muted, p.text, hover_t);
         (
             fill,
             Stroke::new(1.0_f32, stroke_color),

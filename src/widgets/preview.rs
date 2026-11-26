@@ -3,7 +3,7 @@
 
 use egui::{Response, RichText, Ui};
 
-use super::{palette, small};
+use super::{palette, popup_width, small};
 use crate::theme;
 
 /// Maximum width of a hover preview card so prose stays scannable.
@@ -15,7 +15,7 @@ pub fn hover_card(response: Response, title: &str, body: impl FnOnce(&mut Ui)) -
     let title = title.to_owned();
     response.on_hover_ui(move |ui| {
         let p = palette(ui);
-        ui.set_max_width(PREVIEW_MAX);
+        ui.set_max_width(popup_width(ui.ctx(), PREVIEW_MAX));
         ui.spacing_mut().item_spacing.y = 4.0;
         ui.add(
             egui::Label::new(

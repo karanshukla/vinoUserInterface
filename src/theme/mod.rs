@@ -603,7 +603,7 @@ pub(crate) mod tests {
     fn motion_helpers_snap_immediately_when_still() {
         let ctx = egui::Context::default();
         ctx.all_styles_mut(|style| style.animation_time = 0.0);
-        let id = egui::Id::new("motion-test");
+        let id = egui::Id::unique("motion-test");
         assert_eq!(animate_effect(&ctx, id, true), 1.0);
         assert_eq!(animate_effect(&ctx, id, false), 0.0);
         assert_eq!(animate_spatial(&ctx, id, true), 1.0);

@@ -88,14 +88,34 @@ width, it adapts automatically to sidebar width and text scaling (typically
 splitting into two columns around 1200 px window width, covering full 1280 and
 1366 displays).
 
-### Fluid frame sizing
+### Fluid frame sizing and responsive primitives
 
 Between `SIDEBAR_FROM` and `FLUID_TO` (1600), the sidebar scales smoothly from
 200 px to `SIDEBAR_MAX` (240 px), and the page inset scales from 28 px to
 40 px. Call `sidebar_width` and `page_inset` with the current window width each
-frame rather than hardcoding constants. Growth is bounded so the content area
-never shrinks as the window widens. Internal row dimensions (heights, padding,
-and font sizes) remain fixed because text size is controlled by desktop scaling.
+frame rather than hardcoding constants. For full-width pages without a sidebar
+(such as catalogs or viewers), use `content_inset(window)` to scale margins
+smoothly across the entire range from `PAGE_INSET_MIN` (12 px at 340 px) through
+`PAGE_INSET` (28 px at `SIDEBAR_FROM`) to `PAGE_INSET_MAX` (40 px at `FLUID_TO`).
+Growth is bounded so the content area never shrinks as the window widens.
+Internal row dimensions (heights, padding, and font sizes) remain fixed because
+text size is controlled by desktop scaling.
+
+Applications can also build adaptive single-page layouts from shared primitives:
+
+- **`SizeClass`** (`Compact` under 560 px, `Medium` 560..900 px, `Expanded`
+  900 px and up): query via `SizeClass::for_ui(ui)` to drop dead vertical
+  padding, tighten grid gaps, or hide optional inline chrome on quarter tiles.
+- **`responsive_grid` & `grid_columns`**: automatically adapt a multi-column
+  card or tile grid from `max_columns` down to `1` as the window narrows or text
+  scale increases.
+- **`responsive_bar`**: places leading content on the left and trailing actions
+  on the right above `break_width`, stacking into wrapped left-aligned rows
+  below it.
+- **`popup_width`**: caps popovers and `hover_card` previews to the current
+  viewport width so overlays never clip on 340 px quarter tiles.
+- **`button_group`**: automatically tightens horizontal padding and wraps onto
+  multiple lines with uniform 8 px corners when narrower than `available_width`.
 
 ![A full 1440 x 900 screen: a wider sidebar and the page in two columns](docs/images/wide.png)
 

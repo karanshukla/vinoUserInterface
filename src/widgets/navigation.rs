@@ -7,7 +7,8 @@ use egui::{
 };
 
 use super::{
-    ICON, NAV_ICON_CENTRE, NAV_TEXT, TAG_PAD, Tone, paint_focus_ring, palette, small, tag, weight,
+    ICON, NAV_ICON_CENTRE, NAV_TEXT, TAG_PAD, Tone, lerp_color, paint_focus_ring, palette, small,
+    tag, weight,
 };
 use crate::a11y;
 use crate::icons::{self, Icon};
@@ -36,20 +37,8 @@ pub fn nav_item(
     let (fill, color, icon_color, family) = if selected {
         (p.tint, p.text, p.accent, theme::semibold())
     } else {
-        let fill = if hover_t <= 0.0 {
-            Color32::TRANSPARENT
-        } else if hover_t >= 1.0 {
-            p.field
-        } else {
-            Color32::TRANSPARENT.lerp_to_gamma(p.field, hover_t)
-        };
-        let fg = if hover_t <= 0.0 {
-            p.muted
-        } else if hover_t >= 1.0 {
-            p.text
-        } else {
-            p.muted.lerp_to_gamma(p.text, hover_t)
-        };
+        let fill = lerp_color(Color32::TRANSPARENT, p.field, hover_t);
+        let fg = lerp_color(p.muted, p.text, hover_t);
         (fill, fg, fg, theme::medium())
     };
     let radius = 8.0 - 3.0 * press_t;
@@ -138,12 +127,8 @@ pub fn tab(
     let active_t = theme::animate_spatial(ui.ctx(), response.id.with("active"), active);
     let color = if !enabled {
         colors.muted.gamma_multiply(0.5)
-    } else if lit_t <= 0.0 {
-        colors.muted
-    } else if lit_t >= 1.0 {
-        colors.text
     } else {
-        colors.muted.lerp_to_gamma(colors.text, lit_t)
+        lerp_color(colors.muted, colors.text, lit_t)
     };
     let painter = ui.painter();
     painter.galley(rect.left_top() + vec2(0.0, 5.0), galley, color);

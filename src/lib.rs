@@ -73,4 +73,4 @@ pub use icons::Icon;
 pub use theme::{Palette, palette};
 pub use tray::MenuIcon;
 #[cfg(feature = "egui")]
-pub use widgets::{Button, ButtonKind, ChipKind, Column, Row, SplitResponse, Tone};
+pub use widgets::{Button, ButtonKind, ChipKind, Column, Row, SizeClass, SplitResponse, Tone};

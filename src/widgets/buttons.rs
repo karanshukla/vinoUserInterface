@@ -5,7 +5,7 @@ use egui::{
     StrokeKind, Ui, WidgetInfo, pos2, vec2,
 };
 
-use super::{CONTROL_HEIGHT, ICON, SMALL_HEIGHT, faded, paint_focus_ring, palette};
+use super::{CONTROL_HEIGHT, ICON, SMALL_HEIGHT, faded, lerp_color, paint_focus_ring, palette};
 use crate::icons::{self, Icon};
 use crate::theme::{self, Palette};
 
@@ -57,16 +57,6 @@ impl Corners {
                 se: outer,
             },
         }
-    }
-}
-
-fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
-    if t <= 0.0 {
-        a
-    } else if t >= 1.0 {
-        b
-    } else {
-        a.lerp_to_gamma(b, t)
     }
 }
 
