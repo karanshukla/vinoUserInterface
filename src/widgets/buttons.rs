@@ -70,55 +70,75 @@ fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
     }
 }
 
+struct ButtonStates {
+    rest: Color32,
+    hovered: Color32,
+    pressed: Color32,
+    stroke: Stroke,
+    text: Color32,
+    active_text: Color32,
+}
+
+struct ButtonMetrics {
+    width: f32,
+    height: f32,
+    text_w: f32,
+    icon_w: f32,
+    galley: std::sync::Arc<egui::Galley>,
+}
+
 impl ButtonKind {
     /// The fill, outline and text colour at rest, hovered and pressed.
-    fn states(self, p: &Palette) -> ((Color32, Color32, Color32), Stroke, (Color32, Color32)) {
+    fn states(self, p: &Palette) -> ButtonStates {
         match self {
-            ButtonKind::Primary => (
-                (
-                    p.primary_fill,
-                    p.primary_fill.lerp_to_gamma(p.bg, 0.12),
-                    p.primary_fill.lerp_to_gamma(p.bg, 0.22),
-                ),
-                Stroke::NONE,
-                (p.primary_text, p.primary_text),
-            ),
-            ButtonKind::Tonal => (
-                (
-                    p.tonal_fill,
-                    p.tonal_fill.lerp_to_gamma(p.primary_fill, 0.08),
-                    p.tonal_fill.lerp_to_gamma(p.primary_fill, 0.16),
-                ),
-                Stroke::NONE,
-                (p.text, p.text),
-            ),
-            ButtonKind::Secondary => (
-                (p.field, p.hovered(), p.pressed),
-                Stroke::new(1.0_f32, p.rule_strong),
-                (p.text, p.text),
-            ),
-            ButtonKind::Ghost => (
-                (Color32::TRANSPARENT, p.field, p.pressed),
-                Stroke::NONE,
-                (p.muted, p.text),
-            ),
-            ButtonKind::Destructive => (
-                (
-                    p.danger,
-                    p.danger.lerp_to_gamma(Color32::BLACK, 0.1),
-                    p.danger.lerp_to_gamma(Color32::BLACK, 0.18),
-                ),
-                Stroke::NONE,
-                (p.danger_text, p.danger_text),
-            ),
+            ButtonKind::Primary => ButtonStates {
+                rest: p.primary_fill,
+                hovered: p.primary_fill.lerp_to_gamma(p.bg, 0.12),
+                pressed: p.primary_fill.lerp_to_gamma(p.bg, 0.22),
+                stroke: Stroke::NONE,
+                text: p.primary_text,
+                active_text: p.primary_text,
+            },
+            ButtonKind::Tonal => ButtonStates {
+                rest: p.tonal_fill,
+                hovered: p.tonal_fill.lerp_to_gamma(p.primary_fill, 0.08),
+                pressed: p.tonal_fill.lerp_to_gamma(p.primary_fill, 0.16),
+                stroke: Stroke::NONE,
+                text: p.text,
+                active_text: p.text,
+            },
+            ButtonKind::Secondary => ButtonStates {
+                rest: p.field,
+                hovered: p.hovered(),
+                pressed: p.pressed,
+                stroke: Stroke::new(1.0_f32, p.rule_strong),
+                text: p.text,
+                active_text: p.text,
+            },
+            ButtonKind::Ghost => ButtonStates {
+                rest: Color32::TRANSPARENT,
+                hovered: p.field,
+                pressed: p.pressed,
+                stroke: Stroke::NONE,
+                text: p.muted,
+                active_text: p.text,
+            },
+            ButtonKind::Destructive => ButtonStates {
+                rest: p.danger,
+                hovered: p.danger.lerp_to_gamma(Color32::BLACK, 0.1),
+                pressed: p.danger.lerp_to_gamma(Color32::BLACK, 0.18),
+                stroke: Stroke::NONE,
+                text: p.danger_text,
+                active_text: p.danger_text,
+            },
         }
     }
 
     fn look(self, p: &Palette, hover_t: f32, press_t: f32) -> (Color32, Stroke, Color32) {
-        let ((rest, hovered, pressed), stroke, (rest_text, active_text)) = self.states(p);
-        let fill = lerp_color(lerp_color(rest, hovered, hover_t), pressed, press_t);
-        let text = lerp_color(rest_text, active_text, hover_t.max(press_t));
-        (fill, stroke, text)
+        let s = self.states(p);
+        let fill = lerp_color(lerp_color(s.rest, s.hovered, hover_t), s.pressed, press_t);
+        let text = lerp_color(s.text, s.active_text, hover_t.max(press_t));
+        (fill, s.stroke, text)
     }
 
     fn text_weight(self) -> FontFamily {
@@ -187,7 +207,7 @@ impl Button {
         self
     }
 
-    fn metrics(&self, ui: &Ui) -> (f32, f32, f32, f32, std::sync::Arc<egui::Galley>) {
+    fn metrics(&self, ui: &Ui) -> ButtonMetrics {
         let (height, pad, size) = if self.small {
             (SMALL_HEIGHT, 10.0, 12.5)
         } else {
@@ -213,7 +233,13 @@ impl Button {
         } else {
             (text_w + icon_w + 2.0 * pad).max(self.min_width)
         };
-        (width, height, text_w, icon_w, galley)
+        ButtonMetrics {
+            width,
+            height,
+            text_w,
+            icon_w,
+            galley,
+        }
     }
 }
 
@@ -221,7 +247,13 @@ impl egui::Widget for Button {
     fn ui(self, ui: &mut Ui) -> Response {
         let p = palette(ui);
         let enabled = ui.is_enabled();
-        let (width, height, text_w, icon_w, galley) = self.metrics(ui);
+        let ButtonMetrics {
+            width,
+            height,
+            text_w,
+            icon_w,
+            galley,
+        } = self.metrics(ui);
         let (rect, response) = ui.allocate_exact_size(
             vec2(width, height),
             if enabled {
@@ -297,7 +329,9 @@ pub fn split_button<R>(
     let kind = button.kind;
     let small = button.small;
     button.corners = Corners::Leading;
-    let (lead_w, height, _, _, _) = button.metrics(ui);
+    let metrics = button.metrics(ui);
+    let lead_w = metrics.width;
+    let height = metrics.height;
     let trigger_w = height;
     let total_w = lead_w + SPLIT_GAP + trigger_w;
     let mut trigger = Button::new(kind, "").icon(Icon::ChevronDown);
