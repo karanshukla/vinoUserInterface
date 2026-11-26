@@ -87,6 +87,16 @@ fn faded(color: Color32, enabled: bool) -> Color32 {
     }
 }
 
+fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    if t <= 0.0 {
+        a
+    } else if t >= 1.0 {
+        b
+    } else {
+        a.lerp_to_gamma(b, t)
+    }
+}
+
 /// The text weight of a choice: semibold for the one that is on or selected.
 fn weight(selected: bool) -> FontFamily {
     if selected {

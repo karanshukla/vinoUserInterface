@@ -78,6 +78,47 @@ fn cap_for(max_width: f32, width: f32) -> f32 {
     }
 }
 
+/// Narrowest horizontal inset on quarter-tiled windows (`340 px` wide).
+pub const PAGE_INSET_MIN: f32 = 12.0;
+const MIN_WINDOW: f32 = 340.0;
+
+/// Window size classes tuned for laptop splits and desktop monitors:
+///
+/// - `Compact`: under `560 px` (quarter tile, narrow split, or 2x text scale)
+/// - `Medium`: `560..900 px` (half-tiled laptop display)
+/// - `Expanded`: `900 px` and up (full laptop or desktop window)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SizeClass {
+    Compact,
+    Medium,
+    Expanded,
+}
+
+/// Upper boundary (exclusive) of [`SizeClass::Compact`].
+pub const COMPACT_MAX: f32 = 560.0;
+/// Upper boundary (exclusive) of [`SizeClass::Medium`].
+pub const MEDIUM_MAX: f32 = 900.0;
+
+impl SizeClass {
+    pub fn of(width: f32) -> Self {
+        if width < COMPACT_MAX {
+            SizeClass::Compact
+        } else if width < MEDIUM_MAX {
+            SizeClass::Medium
+        } else {
+            SizeClass::Expanded
+        }
+    }
+
+    pub fn for_ui(ui: &Ui) -> Self {
+        Self::of(ui.ctx().content_rect().width())
+    }
+
+    pub fn is_compact(self) -> bool {
+        self == SizeClass::Compact
+    }
+}
+
 /// How far a window this wide is from `SIDEBAR_FROM` to `FLUID_TO`, 0 to 1.
 fn fluid(window: f32) -> f32 {
     ((window - SIDEBAR_FROM) / (FLUID_TO - SIDEBAR_FROM)).clamp(0.0, 1.0)
@@ -94,6 +135,91 @@ pub fn sidebar_width(window: f32) -> f32 {
 /// [`PAGE_INSET`] growing to [`PAGE_INSET_MAX`], as [`sidebar_width`] does.
 pub fn page_inset(window: f32) -> f32 {
     (PAGE_INSET + (PAGE_INSET_MAX - PAGE_INSET) * fluid(window)).round()
+}
+
+/// Fluid horizontal page margin across all window sizes: [`PAGE_INSET_MIN`] at
+/// `340 px`, rising smoothly to [`PAGE_INSET`] at [`SIDEBAR_FROM`] and
+/// [`PAGE_INSET_MAX`] at [`FLUID_TO`] without shrinking the page as the window
+/// widens (pinned by
+/// `widgets::tests::content_inset_scales_smoothly_without_shrinking_the_page`).
+pub fn content_inset(window: f32) -> f32 {
+    if window >= SIDEBAR_FROM {
+        page_inset(window)
+    } else {
+        let t = ((window - MIN_WINDOW) / (SIDEBAR_FROM - MIN_WINDOW)).clamp(0.0, 1.0);
+        (PAGE_INSET_MIN + (PAGE_INSET - PAGE_INSET_MIN) * t).round()
+    }
+}
+
+/// Safe maximum width for a popover or hover card inside the current viewport.
+pub fn popup_width(ctx: &egui::Context, max: f32) -> f32 {
+    (ctx.content_rect().width() - 32.0).clamp(200.0, max.max(200.0))
+}
+
+/// How many columns of at least `min_item_width` (separated by `gap`) fit in
+/// `available`, capped at `max_columns` (pinned by
+/// `widgets::tests::grid_columns_adapts_from_one_to_max`).
+pub fn grid_columns(available: f32, min_item_width: f32, gap: f32, max_columns: usize) -> usize {
+    let max = max_columns.max(1);
+    let step = (min_item_width + gap).max(1.0);
+    let fit = ((available + gap) / step).floor().max(1.0) as usize;
+    fit.clamp(1, max)
+}
+
+/// A responsive grid of equal-width cells that adapts from `max_columns` down
+/// to `1` as the window narrows or text scale increases, passing each cell its
+/// allocated width.
+pub fn responsive_grid<T>(
+    ui: &mut Ui,
+    items: &[T],
+    min_item_width: f32,
+    gap: f32,
+    max_columns: usize,
+    mut cell: impl FnMut(&mut Ui, &T, f32),
+) {
+    if items.is_empty() {
+        return;
+    }
+    let width = ui.available_width();
+    let cols = grid_columns(width, min_item_width, gap, max_columns);
+    let cell_w = ((width - gap * (cols - 1) as f32) / cols as f32).max(1.0);
+    let rows = items.chunks(cols);
+    let total_rows = rows.len();
+    for (row_idx, chunk) in rows.enumerate() {
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for item in chunk {
+                ui.allocate_ui_with_layout(vec2(cell_w, 0.0), Layout::top_down(Align::Min), |ui| {
+                    ui.set_width(cell_w);
+                    cell(ui, item, cell_w);
+                });
+            }
+        });
+        if row_idx + 1 < total_rows {
+            ui.add_space(gap);
+        }
+    }
+}
+
+/// A header or toolbar row with leading content on the left and trailing
+/// actions on the right; below `break_width`, stacks cleanly onto two wrapped
+/// left-aligned rows (pinned by
+/// `widgets::tests::a_responsive_bar_stacks_below_its_breakpoint`).
+pub fn responsive_bar(
+    ui: &mut Ui,
+    break_width: f32,
+    leading: impl FnOnce(&mut Ui),
+    trailing: impl FnOnce(&mut Ui),
+) {
+    if ui.available_width() >= break_width {
+        ui.horizontal(|ui| {
+            leading(ui);
+            ui.with_layout(Layout::right_to_left(Align::Center), trailing);
+        });
+    } else {
+        ui.horizontal_wrapped(leading);
+        ui.horizontal_wrapped(trailing);
+    }
 }
 
 /// One of a [`columns`] page's two columns.

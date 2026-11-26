@@ -97,12 +97,27 @@ fn gallery(ui: &mut Ui, state: &mut State) {
         ui.horizontal_wrapped(|ui| {
             widgets::toggle_chip(ui, &mut state.images, "Images", Some(8));
             ui.add(Button::primary("Save"));
+            ui.add(Button::tonal("Update"));
+            widgets::split_button(
+                ui,
+                Button::tonal("Install").small(),
+                "Install options",
+                |ui| {
+                    let _ = ui.button("Install from source");
+                },
+            );
             ui.add(Button::ghost("Cancel").small());
             ui.add(Button::destructive("Delete index").icon(Icon::Cleanup));
             widgets::copy_button(ui, "vinosearch --status", "Copy command");
             let remove = widgets::icon_button(ui, ButtonKind::Ghost, Icon::Excluded, "Remove");
             a11y::for_what(remove, "~/Downloads");
         });
+        widgets::button_group(
+            ui,
+            "Filter",
+            &mut state.page,
+            &[(0, "All"), (1, "Installed")],
+        );
         widgets::disclosure(ui, "advanced", "Advanced", |ui| {
             widgets::small(ui, "Secondary options.");
         });

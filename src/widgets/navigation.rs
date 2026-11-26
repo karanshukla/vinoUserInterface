@@ -7,7 +7,8 @@ use egui::{
 };
 
 use super::{
-    ICON, NAV_ICON_CENTRE, NAV_TEXT, TAG_PAD, Tone, paint_focus_ring, palette, small, tag, weight,
+    ICON, NAV_ICON_CENTRE, NAV_TEXT, TAG_PAD, Tone, lerp_color, paint_focus_ring, palette, small,
+    tag, weight,
 };
 use crate::a11y;
 use crate::icons::{self, Icon};
@@ -29,15 +30,20 @@ pub fn nav_item(
     if !ui.is_rect_visible(rect) {
         return response;
     }
+    let hovered = response.hovered();
+    let pressed = response.is_pointer_button_down_on();
+    let hover_t = theme::animate_effect(ui.ctx(), response.id.with("hover"), hovered);
+    let press_t = theme::animate_spatial(ui.ctx(), response.id.with("press"), pressed);
     let (fill, color, icon_color, family) = if selected {
         (p.tint, p.text, p.accent, theme::semibold())
-    } else if response.hovered() {
-        (p.field, p.text, p.text, theme::medium())
     } else {
-        (Color32::TRANSPARENT, p.muted, p.muted, theme::medium())
+        let fill = lerp_color(Color32::TRANSPARENT, p.field, hover_t);
+        let fg = lerp_color(p.muted, p.text, hover_t);
+        (fill, fg, fg, theme::medium())
     };
+    let radius = 8.0 - 3.0 * press_t;
     let painter = ui.painter();
-    painter.rect_filled(rect, 8.0, fill);
+    painter.rect_filled(rect, radius, fill);
     icons::paint(
         painter,
         Rect::from_center_size(
@@ -73,7 +79,7 @@ pub fn nav_item(
         color,
     );
     if response.has_focus() {
-        paint_focus_ring(painter, rect, 8.0, p);
+        paint_focus_ring(painter, rect, radius, p);
     }
     if let Some(badge) = badge {
         let mut badge_ui = ui.new_child(
@@ -117,18 +123,20 @@ pub fn tab(
         response.on_hover_cursor(egui::CursorIcon::NotAllowed)
     };
     let lit = enabled && (active || response.hovered() || response.has_focus());
-    let color = if lit {
-        colors.text
-    } else if enabled {
-        colors.muted
-    } else {
+    let lit_t = theme::animate_effect(ui.ctx(), response.id.with("lit"), lit);
+    let active_t = theme::animate_spatial(ui.ctx(), response.id.with("active"), active);
+    let color = if !enabled {
         colors.muted.gamma_multiply(0.5)
+    } else {
+        lerp_color(colors.muted, colors.text, lit_t)
     };
     let painter = ui.painter();
     painter.galley(rect.left_top() + vec2(0.0, 5.0), galley, color);
-    if active {
+    if active_t > 0.01 {
+        let half = rect.width() * 0.5 * active_t;
+        let cx = rect.center().x;
         painter.hline(
-            rect.left()..=rect.right(),
+            (cx - half)..=(cx + half),
             rect.bottom() - 1.0,
             Stroke::new(2.0_f32, p.accent),
         );

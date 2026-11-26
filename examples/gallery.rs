@@ -407,12 +407,27 @@ impl Gallery {
             widgets::group_section(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.add(Button::primary("Save"));
+                    ui.add(Button::tonal("Update"));
+                    widgets::split_button(ui, Button::tonal("Install"), "Install options", |ui| {
+                        let _ = ui.button("Install from release");
+                        let _ = ui.button("Install from source");
+                    });
                     ui.add(Button::secondary("Open folder").icon(Icon::Folder));
                     ui.add(Button::ghost("Cancel"));
                     ui.add(Button::destructive("Delete"));
                     widgets::icon_button(ui, ButtonKind::Secondary, Icon::Refresh, "Refresh");
                     widgets::icon_button(ui, ButtonKind::Ghost, Icon::More, "More");
                 });
+                widgets::button_group(
+                    ui,
+                    "Runs on",
+                    &mut self.device,
+                    &[
+                        (Device::Npu, "NPU"),
+                        (Device::Gpu, "GPU"),
+                        (Device::Cpu, "CPU"),
+                    ],
+                );
             });
         });
         widgets::group_label(ui, "Status");
@@ -477,12 +492,11 @@ fn notices_and_art(ui: &mut Ui) {
             });
         });
         widgets::group_section(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 16.0;
-                logo::search(ui, 40.0);
-                logo::whisper(ui, 40.0);
-                logo::speak(ui, 40.0);
-                logo::authface(ui, 40.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(14.0, 12.0);
+                for app in vino_user_interface::App::ALL {
+                    logo::app(ui, app, 40.0).on_hover_text(app.name());
+                }
             });
         });
         widgets::group_section(ui, |ui| {
