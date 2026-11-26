@@ -589,14 +589,18 @@ pub fn search_field(
 }
 
 /// Keeps Escape from surrendering focus while `search_field` has text so the
-/// first Escape clears the query and a second Escape leaves the field.
+/// first Escape clears the query and a second Escape leaves the field, without
+/// overwriting `TextEdit`'s arrow-key focus locks (pinned by
+/// `widgets::tests::a_non_empty_search_field_keeps_arrow_keys`).
 fn take_escape(ui: &Ui, id: egui::Id) {
     ui.memory_mut(|m| {
         m.set_focus_lock_filter(
             id,
             egui::EventFilter {
+                tab: false,
+                horizontal_arrows: true,
+                vertical_arrows: true,
                 escape: true,
-                ..Default::default()
             },
         )
     });

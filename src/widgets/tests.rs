@@ -508,6 +508,30 @@ fn a_search_field_clears_from_its_inline_button_and_escape() {
 }
 
 #[test]
+fn a_non_empty_search_field_keeps_arrow_keys() {
+    let mut h = Harness::builder().with_size((400.0, 140.0)).build_ui_state(
+        |ui, (styled, text): &mut (bool, String)| {
+            if styling_first_frame(ui, styled) {
+                return;
+            }
+            search_field(ui, text, "Search", "Search", 300.0);
+            let _ = ui.add(Button::secondary("Below"));
+        },
+        (false, "camping".to_owned()),
+    );
+    h.run();
+    h.get_by_role(Role::TextInput).focus();
+    h.run();
+    assert!(h.get_by_role(Role::TextInput).is_focused());
+    h.key_press(egui::Key::ArrowDown);
+    h.run();
+    assert!(h.get_by_role(Role::TextInput).is_focused());
+    h.key_press(egui::Key::ArrowLeft);
+    h.run();
+    assert!(h.get_by_role(Role::TextInput).is_focused());
+}
+
+#[test]
 fn a_copy_button_confirms_and_resets() {
     let mut h = Harness::builder().with_size((300.0, 100.0)).build_ui_state(
         |ui, styled: &mut bool| {
