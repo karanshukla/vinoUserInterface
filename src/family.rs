@@ -60,9 +60,9 @@ impl App {
             App::AuthFace => "Unlock with your face",
             App::OpenEffects => "Webcam effects for video calls",
             App::Pop => "AI actions for selected text",
-            App::Speak => "Natural-sounding text-to-speech",
+            App::Speak => "Local text-to-speech",
             App::Search => "Search local files by meaning",
-            App::Watch => "Monitor NPU usage and activity",
+            App::Watch => "Monitor NPU and OpenVINO usage",
         }
     }
 

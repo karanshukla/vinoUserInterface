@@ -171,7 +171,7 @@ impl Updater {
             Ok(status) => status,
             Err(TryRecvError::Empty) => return false,
             Err(TryRecvError::Disconnected) => {
-                Status::Failed("The update process exited unexpectedly.".into())
+                Status::Failed("Update stopped unexpectedly.".into())
             }
         };
         self.pending = None;
@@ -201,7 +201,7 @@ fn run_update(command: &[String], tag: &str) -> Status {
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
             Status::Failed(
-                failure_line(&stderr).unwrap_or_else(|| format!("The update to {tag} failed.")),
+                failure_line(&stderr).unwrap_or_else(|| format!("Update to {tag} failed.")),
             )
         }
         Err(e) => Status::Failed(format!("Couldn't run {}: {e}.", command[0])),
@@ -314,12 +314,12 @@ pub fn fetch_latest(app: App) -> Result<String, String> {
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
-        .map_err(|_| "Could not check for updates: curl is not installed.".to_string())?;
+        .map_err(|_| "Couldn't check for updates: curl isn't installed.".to_string())?;
     if !out.status.success() {
-        return Err("Could not reach GitHub. Check your internet connection and try again.".into());
+        return Err("Couldn't reach GitHub. Check your internet connection.".into());
     }
     latest_tag(&String::from_utf8_lossy(&out.stdout))
-        .ok_or_else(|| "Could not read the latest release from GitHub.".into())
+        .ok_or_else(|| "Couldn't read the latest release from GitHub.".into())
 }
 
 #[cfg(test)]
