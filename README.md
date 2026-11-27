@@ -30,7 +30,7 @@ so setting rows keep their horizontal layout:
 
 ```toml
 [dependencies]
-vino-user-interface = "0.5"
+vino-user-interface = "0.6"
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland"] }
 ```
 
