@@ -496,15 +496,22 @@ application test suites:
 
 ## UI copy
 
-- Use sentence case. Avoid "Please", exclamation marks, and filler adverbs such
-  as "successfully".
+- Use sentence case and plain, natural English (contractions like "don't",
+  "can't", and "isn't" are welcome). Avoid "Please", exclamation marks, and
+  filler adverbs such as "successfully".
+- Skip help text when the row label and control already explain the setting.
+- Hide or disable controls that don't apply in the current mode instead of
+  explaining when they apply in prose; format `0` as "Never" or "Off" instead
+  of writing "Set to 0 to disable."
+- Move technical caveats, CLI commands, and privacy guarantees to
+  documentation rather than cluttering settings rows.
 - Label buttons with specific verbs ("Delete", "Download") instead of generic
   confirmations ("OK", "Yes").
 - Write help text in concrete user terms ("All files will be re-indexed from
   scratch. This may take up to an hour.") rather than internal jargon ("Resets
   the index.").
 - Write error messages that state what failed and, when possible, how to fix it
-  ("Could not open the index because the disk is full.").
+  ("Couldn't open the index because the disk is full.").
 - Avoid marketing filler ("Magic", "Seamlessly", "AI-powered") and emoji in UI
   labels. A static ellipsis in an active status ("Checking…") is acceptable;
   animated ellipses are not.

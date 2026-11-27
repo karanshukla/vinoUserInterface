@@ -60,33 +60,16 @@ fn update_row(ui: &mut Ui, updater: &mut Updater) {
     let name = updater.app().name();
     let status = updater.status().clone();
     let (help, tone) = match &status {
-        Status::Idle => (
-            "Checks GitHub for a newer release. No local data is sent.".to_owned(),
-            Tone::Neutral,
-        ),
-        Status::Checking => (
-            "Checking GitHub for a newer release…".to_owned(),
-            Tone::Neutral,
-        ),
-        Status::UpToDate => (
-            format!("{name} {} is up to date.", updater.current()),
-            Tone::Neutral,
-        ),
+        Status::Idle => (String::new(), Tone::Neutral),
+        Status::Checking => ("Checking for updates…".to_owned(), Tone::Neutral),
+        Status::UpToDate => ("Up to date.".to_owned(), Tone::Neutral),
         Status::Development(tag) => (
-            format!("This is a development build. The latest release is {tag}."),
+            format!("Development build. Latest release: {tag}."),
             Tone::Neutral,
         ),
-        Status::Available(tag) if updater.can_install() => {
-            (format!("{tag} is available."), Tone::Neutral)
-        }
-        Status::Available(tag) => (
-            format!("{tag} is available. See the release page for update instructions."),
-            Tone::Neutral,
-        ),
-        Status::Installing(tag) => (
-            format!("Installing {tag}… This may take a few minutes."),
-            Tone::Neutral,
-        ),
+        Status::Available(_) if updater.can_install() => (String::new(), Tone::Neutral),
+        Status::Available(tag) => (format!("{tag} is available."), Tone::Neutral),
+        Status::Installing(tag) => (format!("Installing {tag}…"), Tone::Neutral),
         Status::Installed(tag) => (format!("Restart {name} to use {tag}."), Tone::Neutral),
         Status::Failed(why) => (why.clone(), Tone::Error),
     };
