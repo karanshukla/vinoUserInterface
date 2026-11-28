@@ -730,6 +730,42 @@ fn a_responsive_bar_stacks_below_its_breakpoint() {
 }
 
 #[test]
+fn a_responsive_bar_keeps_wide_leading_content_clear_of_trailing_actions() {
+    let long = "2026-11-27 21:28 · 44 s · system audio · A very long podcast episode title in a browser window";
+    let mut h = Harness::builder()
+        .with_size((outer(640.0), 160.0))
+        .build_ui_state(
+            |ui, styled: &mut bool| {
+                if styling_first_frame(ui, styled) {
+                    return;
+                }
+                responsive_bar(
+                    ui,
+                    500.0,
+                    |ui| {
+                        ui.add(egui::Label::new(long).truncate());
+                    },
+                    |ui| {
+                        ui.add(Button::secondary("Show in folder"));
+                        ui.add(Button::secondary("Export…"));
+                        ui.add(Button::secondary("Open in word processor"));
+                    },
+                );
+            },
+            false,
+        );
+    h.run_steps(4);
+    let label = h.get_by_label(long).rect();
+    let leftmost_action = h
+        .get_by_role_and_label(Role::Button, "Open in word processor")
+        .rect();
+    assert!(
+        label.max.x <= leftmost_action.min.x + 1.0,
+        "leading {label:?} overlapped trailing {leftmost_action:?}"
+    );
+}
+
+#[test]
 fn a_button_group_wraps_when_narrow() {
     let mut h = Harness::builder()
         .with_size((outer(180.0), 140.0))
