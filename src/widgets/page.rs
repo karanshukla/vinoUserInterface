@@ -204,7 +204,8 @@ pub fn responsive_grid<T>(
 /// A header or toolbar row with leading content on the left and trailing
 /// actions on the right; below `break_width`, stacks cleanly onto two wrapped
 /// left-aligned rows (pinned by
-/// `widgets::tests::a_responsive_bar_stacks_below_its_breakpoint`).
+/// `widgets::tests::a_responsive_bar_stacks_below_its_breakpoint` and
+/// `widgets::tests::a_responsive_bar_keeps_wide_leading_content_clear_of_trailing_actions`).
 pub fn responsive_bar(
     ui: &mut Ui,
     break_width: f32,
@@ -213,8 +214,14 @@ pub fn responsive_bar(
 ) {
     if ui.available_width() >= break_width {
         ui.horizontal(|ui| {
-            leading(ui);
-            ui.with_layout(Layout::right_to_left(Align::Center), trailing);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                trailing(ui);
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    let clip = ui.max_rect().intersect(ui.clip_rect());
+                    ui.set_clip_rect(clip);
+                    leading(ui);
+                });
+            });
         });
     } else {
         ui.horizontal_wrapped(leading);
